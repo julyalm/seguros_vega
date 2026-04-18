@@ -22,6 +22,8 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
+        'avatar',
     ];
 
     /**
@@ -45,5 +47,13 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Get the policies for the user (agent).
+     */
+    public function polizas(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Poliza::class);
     }
 }

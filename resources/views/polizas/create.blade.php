@@ -5,7 +5,9 @@
 
 @section('content')
 
-<div class="sv-wizard" x-data="polizaWizard()">
+<form action="{{ route('polizas.store') }}" method="POST" enctype="multipart/form-data"
+      class="sv-wizard" x-data="polizaWizard()" x-init="init()" @submit.prevent="submitForm($event)">
+  @csrf
 
   <!-- ══ PROGRESS STEPS ═══════════════════════════════════ -->
   <div class="sv-wizard__steps">
@@ -19,19 +21,16 @@
                'disabled': currentStep < i
              }">
           <div class="sv-wizard__step-circle" @click="if(currentStep > i) goTo(i)">
-            <!-- Ícono de check si completado -->
             <template x-if="currentStep > i">
               <svg width="16" viewBox="0 0 24 24" fill="currentColor">
                 <path fill-rule="evenodd" d="M19.916 4.626a.75.75 0 0 1 .208 1.04l-9 13.5a.75.75 0 0 1-1.154.114l-6-6a.75.75 0 0 1 1.06-1.06l5.353 5.353 8.493-12.74a.75.75 0 0 1 1.04-.207Z" clip-rule="evenodd"/>
               </svg>
             </template>
-            <!-- Número si no completado -->
             <template x-if="currentStep <= i">
               <span x-text="i + 1"></span>
             </template>
           </div>
           <span class="sv-wizard__step-label" x-text="step.label"></span>
-          <!-- Línea conectora -->
           <div class="sv-wizard__step-line" x-show="i < steps.length - 1"></div>
         </div>
       </template>
@@ -42,76 +41,54 @@
   <!-- ══ CONTENIDO DEL PASO ════════════════════════════════ -->
   <div class="sv-wizard__body">
 
-    <!-- PASO 1: RAMO -->
-    <div x-show="currentStep === 0" class="sv-wizard__panel">
-      @include('polizas.partials._step-ramo')
-    </div>
+    @if($errors->any())
+      <div class="sv-alert sv-alert--error" style="margin-bottom: 24px;">
+        <svg width="18" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0">
+          <path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd"/>
+        </svg>
+        <div>
+          <strong>Revisa los siguientes errores:</strong>
+          <ul style="margin: 4px 0 0 20px; font-size: 13px;">
+            @foreach($errors->all() as $error)
+              <li>{{ $error }}</li>
+            @endforeach
+          </ul>
+        </div>
+      </div>
+    @endif
 
-    <!-- PASO 2: DATOS DEL ASEGURADO -->
-    <div x-show="currentStep === 1" class="sv-wizard__panel">
-      @include('polizas.partials._step-asegurado')
-    </div>
-
-    <!-- PASO 3: GENERALES -->
-    <div x-show="currentStep === 2" class="sv-wizard__panel">
-      @include('polizas.partials._step-generales')
-    </div>
-
-    <!-- PASO 4: RECIBOS -->
-    <div x-show="currentStep === 3" class="sv-wizard__panel">
-      @include('polizas.partials._step-recibos')
-    </div>
-
-    <!-- PASO 5: VEHÍCULO (solo si ramo = Autos) -->
-    <div x-show="currentStep === 4 && form.ramo === 'Autos'" class="sv-wizard__panel">
-      @include('polizas.partials._step-vehiculo')
-    </div>
-
-    <!-- PASO 5B: GMM datos extra -->
-    <div x-show="currentStep === 4 && form.ramo === 'GMM'" class="sv-wizard__panel">
-      @include('polizas.partials._step-gmm')
-    </div>
-
-    <!-- PASO 6: ASEGURADORA -->
-    <div x-show="currentStep === 5" class="sv-wizard__panel">
-      @include('polizas.partials._step-aseguradora')
-    </div>
+    <div x-show="steps[currentStep]?.label === 'Ramo'">@include('polizas.partials._step-ramo')</div>
+    <div x-show="steps[currentStep]?.label === 'Asegurado'">@include('polizas.partials._step-asegurado')</div>
+    <div x-show="steps[currentStep]?.label === 'Generales'">@include('polizas.partials._step-generales')</div>
+    <div x-show="steps[currentStep]?.label === 'Recibos'">@include('polizas.partials._step-recibos')</div>
+    <div x-show="steps[currentStep]?.label === 'Detalle' && ramo === 'Autos'">@include('polizas.partials._step-vehiculo')</div>
+    <div x-show="steps[currentStep]?.label === 'Detalle' && ramo === 'GMM'">@include('polizas.partials._step-gmm')</div>
+    <div x-show="steps[currentStep]?.label === 'Aseguradora'">@include('polizas.partials._step-aseguradora')</div>
 
   </div>
 
   <!-- ══ NAVEGACIÓN DEL WIZARD ═════════════════════════════ -->
   <div class="sv-wizard__nav">
-    <button
-      class="sv-btn sv-btn--outline"
-      @click="prev()"
-      x-show="currentStep > 0"
-    >
-      ← Anterior
-    </button>
+    <button type="button" class="sv-btn sv-btn--outline" @click="prev()" x-show="currentStep > 0">← Anterior</button>
     <div style="flex:1"></div>
-    <button
-      class="sv-btn sv-btn--outline sv-btn--ghost"
-      @click="cancelar()"
-    >
-      Cancelar
-    </button>
-    <button
-      class="sv-btn sv-btn--primary"
-      @click="next()"
-      x-show="currentStep < steps.length - 1"
-    >
+    <a href="{{ route('dashboard') }}" class="sv-btn sv-btn--outline sv-btn--ghost">Cancelar</a>
+
+    <button type="button" class="sv-btn sv-btn--primary" @click="next()" x-show="currentStep < steps.length - 1"
+            :disabled="currentStep === 3 && parseFloat(totalRecibos) > parseFloat(prima_total)"
+            :title="currentStep === 3 && parseFloat(totalRecibos) > parseFloat(prima_total) ? 'La suma no puede exceder la prima total' : ''">
       Siguiente →
     </button>
-    <button
-      class="sv-btn sv-btn--success"
-      @click="guardar()"
-      x-show="currentStep === steps.length - 1"
-    >
-      ✓ Guardar Póliza
+    <button type="submit" class="sv-btn sv-btn--success" x-show="currentStep === steps.length - 1" :disabled="isSubmitting">
+      <template x-if="!isSubmitting">
+        <span>✓ Guardar Póliza</span>
+      </template>
+      <template x-if="isSubmitting">
+        <span>Cargando...</span>
+      </template>
     </button>
   </div>
 
-</div>
+</form>
 
 @endsection
 
@@ -120,45 +97,400 @@
 function polizaWizard() {
   return {
     currentStep: 0,
-    steps: [
-      { label: 'Ramo' },
-      { label: 'Asegurado' },
-      { label: 'Generales' },
-      { label: 'Recibos' },
-      { label: 'Detalle' },
-      { label: 'Aseguradora' },
-    ],
-    form: {
-      ramo: null,
-      esFlotilla: false,
-      flotillaExistente: false,
-      frecuenciaPago: 'Anual',
+    ramo: null,
+    esFlotilla: false,
+    flotillaExistente: false,
+    frecuenciaPago: 'Anual',
+    fechaInicio: '',
+    fechaFin: '',
+    numeroPoliza: '',
+    parentPolicy: null,
+    buscandoPadre: false,
+    padreNotFound: false,
+    cantVehiculos: 1,
+    vehiculos: [],
+    buscandoRfc: false,
+    rfcNotFound: false,
+    isSubmitting: false,
+    polizaExiste: false,
+    verificandoPoliza: false,
+    isNewAddress: true,
+    asegurado: {
+      id: null,
+      nombre: '',
+      rfc: '',
+      nacimiento: '',
+      genero: '',
+      email: '',
+      telefono: '',
+      direcciones: [],
+      direccion_id: null,
+      cp: '',
+      estado: '',
+      municipio: '',
+      colonia: '',
+      calle: '',
+      num_ext: '',
+      num_int: '',
+      alias: 'Principal',
+      colonias: []
+    },
+    // Premium breakdown
+    prima_neta: 0,
+    derechos: 0,
+    recargo: 0,
+    iva: 0,
+    comision: 0,
+    get prima_total() {
+      return (parseFloat(this.prima_neta || 0) +
+              parseFloat(this.derechos || 0) +
+              parseFloat(this.recargo || 0) +
+              parseFloat(this.iva || 0)).toFixed(2);
+    },
+    init() {
+      this.initVehicles();
+      this.$watch('frecuenciaPago', () => this.recibos = []);
+      this.$watch('prima_neta', () => this.recibos = []);
+      this.$watch('iva', () => this.recibos = []);
+      this.$watch('derechos', () => this.recibos = []);
+      this.$watch('recargo', () => this.recibos = []);
+      this.$watch('fechaInicio', () => this.recibos = []);
+      this.$watch('flotillaExistente', () => this.recibos = []);
+    },
+    updateExpiration() {
+      if (!this.fechaInicio) {
+        this.fechaFin = '';
+        return;
+      }
+      const start = new Date(this.fechaInicio + 'T12:00:00');
+      start.setFullYear(start.getFullYear() + 1);
+      this.fechaFin = start.toISOString().split('T')[0];
+    },
+    checkPolicyAvailability() {
+      if (!this.numeroPoliza) {
+        this.polizaExiste = false;
+        return;
+      }
+      this.verificandoPoliza = true;
+      fetch(`/api/polizas/check-availability/${this.numeroPoliza}`)
+        .then(res => res.json())
+        .then(json => {
+          this.polizaExiste = json.exists;
+        })
+        .catch(err => console.error(err))
+        .finally(() => this.verificandoPoliza = false);
+    },
+    checkVinAvailability(index) {
+      const veh = this.vehiculos[index];
+      if (!veh.vin || veh.vin.length < 5) {
+        veh.vinExists = false;
+        return;
+      }
+      fetch(`/api/vehiculos/check-vin/${veh.vin}`)
+        .then(res => res.json())
+        .then(json => {
+          veh.vinExists = json.exists;
+        })
+        .catch(err => console.error(err));
+    },
+    // Receipt detailed management
+    periodoGracia: 30,
+    recibos: [],
+    showBreakdownModal: false,
+    editingRecibo: null,
+
+    openBreakdown(index) {
+       this.editingRecibo = this.recibos[index];
+       this.showBreakdownModal = true;
+    },
+
+    // Watchers manually called from @change or init
+    initRecibos() {
+      if (!this.fechaInicio) {
+        this.recibos = [];
+        return;
+      }
+
+      const freqs = { 'Anual': 1, 'Semestral': 2, 'Trimestral': 4, 'Mensual': 12 };
+      const baseFreq = (this.flotillaExistente && this.parentPolicy)
+                       ? (this.parentPolicy.frecuencia_pago || 'Anual')
+                       : this.frecuenciaPago;
+
+      const cantOriginal = freqs[baseFreq] || 1;
+
+      // Filter parent receipts by start date if inclusion
+      let filteredVencimientos = [];
+      if (this.parentPolicy && this.parentPolicy.vencimientos_pendientes) {
+        filteredVencimientos = this.parentPolicy.vencimientos_pendientes.filter(v => v >= this.fechaInicio);
+      }
+
+      const cant = (this.flotillaExistente && this.parentPolicy)
+                   ? filteredVencimientos.length
+                   : cantOriginal;
+
+      const pNeta = parseFloat(this.prima_neta || 0);
+      const pIva = parseFloat(this.iva || 0);
+      const pRecargo = parseFloat(this.recargo || 0);
+      const pDerechos = parseFloat(this.derechos || 0);
+
+      const netaFracc = Math.round((pNeta / cantOriginal) * 100) / 100;
+      const ivaFracc = Math.round((pIva / cantOriginal) * 100) / 100;
+      const recFracc = Math.round((pRecargo / cantOriginal) * 100) / 100;
+
+      const interval = 12 / cantOriginal;
+      const newRecibos = [];
+
+      let accumNeta = 0;
+      let accumIva = 0;
+      let accumRec = 0;
+
+      for (let i = 0; i < cant; i++) {
+        const start = new Date(this.fechaInicio + 'T12:00:00');
+        start.setMonth(start.getMonth() + (i * interval));
+        const end = new Date(start);
+        end.setMonth(end.getMonth() + interval);
+
+        let currentNeta = netaFracc;
+        let currentIva = ivaFracc;
+        let currentRec = recFracc;
+
+        // If it's the last one, we calculate the remainder to bridge rounding gaps
+        if (i === cant - 1) {
+          currentNeta = parseFloat((pNeta - accumNeta).toFixed(2));
+          currentIva = parseFloat((pIva - accumIva).toFixed(2));
+          currentRec = parseFloat((pRecargo - accumRec).toFixed(2));
+        } else {
+          accumNeta = parseFloat((accumNeta + currentNeta).toFixed(2));
+          accumIva = parseFloat((accumIva + currentIva).toFixed(2));
+          accumRec = parseFloat((accumRec + currentRec).toFixed(2));
+        }
+
+        let der = (i === 0 && !this.parentPolicy) ? pDerechos : 0;
+
+        const r = {
+          indice: i + 1,
+          prima_neta: currentNeta,
+          derechos: der,
+          recargo: currentRec,
+          iva: currentIva,
+          fecha_inicio_vigencia: start.toISOString().split('T')[0],
+          fecha_fin_vigencia: end.toISOString().split('T')[0],
+        };
+
+        this.updateReciboDeadline(r);
+        newRecibos.push(r);
+      }
+
+      this.recibos = newRecibos;
+    },
+
+    updateReciboDeadline(recibo) {
+      if (!recibo.fecha_inicio_vigencia) return;
+      const date = new Date(recibo.fecha_inicio_vigencia + 'T12:00:00');
+      date.setDate(date.getDate() + parseInt(this.periodoGracia || 0));
+      recibo.fecha_vencimiento = date.toISOString().split('T')[0];
+    },
+
+    propagateRecibo(index) {
+      const source = this.recibos[index];
+      for (let i = index + 1; i < this.recibos.length; i++) {
+        this.recibos[i].prima_neta = source.prima_neta;
+        this.recibos[i].derechos = source.derechos;
+        this.recibos[i].recargo = source.recargo;
+        this.recibos[i].iva = source.iva;
+        // Don't propagate dates usually as they are sequential
+      }
+    },
+
+    get totalRecibos() {
+       return this.recibos.reduce((acc, r) => acc + (parseFloat(r.prima_neta) + parseFloat(r.derechos) + parseFloat(r.recargo) + parseFloat(r.iva)), 0).toFixed(2);
+    },
+    get steps() {
+      const baseSteps = [
+        { label: 'Ramo' },
+        { label: 'Asegurado' },
+        { label: 'Generales' },
+        { label: 'Recibos' },
+      ];
+
+      // Solo agregar paso "Detalle" si el ramo es Autos o GMM
+      if (this.ramo === 'Autos' || this.ramo === 'GMM') {
+        baseSteps.push({ label: 'Detalle' });
+      }
+
+      baseSteps.push({ label: 'Aseguradora' });
+      return baseSteps;
+    },
+    isIncisoUsed(val) {
+      if (!val || !this.parentPolicy) return false;
+      return this.incisosUsados.some(i => String(i) === String(val));
+    },
+    lookupParent() {
+      let num = document.querySelector('input[name="numero_poliza_padre"]')?.value;
+      if (!num) return;
+
+      this.buscandoPadre = true;
+      this.padreNotFound = false;
+
+      fetch(`/api/polizas/lookup-parent/${num}`)
+        .then(res => {
+          if (!res.ok) throw new Error();
+          return res.json();
+        })
+        .then(json => {
+          if (json.status === 'success') {
+            const p = json.data;
+            this.parentPolicy = p;
+            this.incisosUsados = p.incisos_usados || [];
+            this.fechaFin = p.fecha_fin;
+            this.frecuenciaPago = p.frecuencia_pago;
+            this.ramo = p.ramo;
+            this.numeroPoliza = p.numero_poliza;
+            this.prima_neta = p.prima_neta;
+            this.derechos = p.derechos;
+            this.recargo = p.recargo;
+            this.iva = p.iva;
+            this.comision = p.comision;
+            this.cantVehiculos = 1;
+            this.initVehicles();
+            this.recibos = [];
+          }
+        })
+        .catch(() => {
+          this.padreNotFound = true;
+          this.parentPolicy = null;
+        })
+        .finally(() => this.buscandoPadre = false);
+    },
+    get proratedSugerido() {
+       if (!this.parentPolicy || !this.fechaInicio) return null;
+       const start = new Date(this.fechaInicio + 'T12:00:00');
+       const end = new Date(this.parentPolicy.fecha_fin + 'T12:00:00');
+       const diffTime = end - start;
+       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+       return diffDays > 0 ? diffDays : 0;
+    },
+    initVehicles() {
+      const count = Math.max(1, parseInt(this.cantVehiculos) || 1);
+      const currentCount = this.vehiculos.length;
+
+      if (count > currentCount) {
+        for (let i = currentCount; i < count; i++) {
+          this.vehiculos.push({
+            inciso: i + 1,
+            tipo: 'Sedán',
+            modelo: new Date().getFullYear(),
+            marca: '',
+            submarca: '',
+            vin: '',
+            vinExists: false,
+            motor: '',
+            placas: ''
+          });
+        }
+      } else if (count < currentCount) {
+        this.vehiculos = this.vehiculos.slice(0, count);
+      }
+    },
+    lookupRfc() {
+      if (this.asegurado.rfc.length < 12) return;
+      this.buscandoRfc = true;
+      this.rfcNotFound = false;
+
+      fetch(`/api/asegurados/${this.asegurado.rfc}`)
+        .then(response => {
+          if (!response.ok) throw new Error('No encontrado');
+          return response.json();
+        })
+        .then(json => {
+          if (json.status === 'success') {
+            const d = json.data;
+            this.asegurado.id = d.id;
+            this.asegurado.nombre = d.nombre || '';
+            this.asegurado.nacimiento = d.fecha_nacimiento || '';
+            this.asegurado.genero = d.genero || '';
+            this.asegurado.email = d.email || '';
+            this.asegurado.telefono = d.telefono || '';
+            this.asegurado.direcciones = d.direcciones || [];
+
+            if (this.asegurado.direcciones.length > 0) {
+              this.isNewAddress = false;
+              this.asegurado.direccion_id = this.asegurado.direcciones[0].id;
+            } else {
+              this.isNewAddress = true;
+            }
+            this.rfcNotFound = false;
+          }
+        })
+        .catch(err => {
+          this.rfcNotFound = true;
+          this.asegurado.id = null;
+          this.asegurado.nombre = '';
+          this.asegurado.direcciones = [];
+          this.isNewAddress = true;
+        })
+        .finally(() => this.buscandoRfc = false);
+    },
+    fetchSepomex() {
+      if (this.asegurado.cp.length !== 5) return;
+      fetch(`/api/sepomex/${this.asegurado.cp}`)
+        .then(res => res.json())
+        .then(res => {
+          if (res.status === 'success') {
+            this.asegurado.estado = res.data.estado;
+            this.asegurado.municipio = res.data.municipio;
+            this.asegurado.colonias = res.data.colonias;
+            if (this.asegurado.colonias.length > 0) this.asegurado.colonia = this.asegurado.colonias[0];
+          }
+        })
+        .catch(err => console.error(err));
     },
     next() {
       if (this.currentStep < this.steps.length - 1) {
-        // Saltar paso 5 si ramo no es Autos ni GMM
-        if (this.currentStep === 3 && this.form.ramo === 'Daños') {
-          this.currentStep = 5;
-        } else {
-          this.currentStep++;
+        if (this.currentStep === 2) {
+          if (this.polizaExiste) {
+             alert('El número de póliza ya existe.');
+             return;
+          }
+          if (this.recibos.length === 0) {
+            this.initRecibos();
+          }
         }
+
+        // Validar VINs solo si estamos en el paso de Detalle y es ramo Autos
+        const detalleStepIndex = this.steps.findIndex(s => s.label === 'Detalle');
+        if (detalleStepIndex !== -1 && this.currentStep === detalleStepIndex && this.ramo === 'Autos') {
+           if (this.vehiculos.some(v => v.vinExists)) {
+              alert('Uno o más vehículos ya tienen un VIN registrado.');
+              return;
+           }
+        }
+
+        this.currentStep++;
       }
     },
     prev() {
       if (this.currentStep > 0) {
-        if (this.currentStep === 5 && this.form.ramo === 'Daños') {
-          this.currentStep = 3;
-        } else {
-          this.currentStep--;
-        }
+        this.currentStep--;
       }
     },
     goTo(index) { this.currentStep = index; },
-    cancelar() { window.location.href = '/dashboard'; },
-    guardar() {
-      // En maquetado: mostrar alert de éxito
-      alert('✓ Póliza registrada correctamente (maquetado)');
-    },
+    submitForm(e) {
+      if (this.isSubmitting) return;
+      this.isSubmitting = true;
+      let formData = new FormData(e.target);
+      fetch(e.target.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+        body: formData
+      })
+      .then(async r => {
+        const d = await r.json();
+        if (r.ok && d.status === 'success') window.location.href = d.redirect;
+        else { alert(d.message || 'Error'); this.isSubmitting = false; }
+      })
+      .catch(e => { console.error(e); alert('Error'); this.isSubmitting = false; });
+    }
   }
 }
 </script>
