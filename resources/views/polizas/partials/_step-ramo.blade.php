@@ -4,8 +4,8 @@
 
   <div class="sv-ramo-grid">
 
-    <label class="sv-ramo-card" :class="{ 'selected': form.ramo === 'Autos' }">
-      <input type="radio" name="ramo" value="Autos" x-model="form.ramo" class="sv-ramo-card__input">
+    <label class="sv-ramo-card" :class="{ 'selected': ramo === 'Autos' }">
+      <input type="radio" name="ramo" value="Autos" x-model="ramo" class="sv-ramo-card__input" required>
       <div class="sv-ramo-card__inner">
         <div class="sv-ramo-card__icon">🚗</div>
         <span class="sv-ramo-card__title">Autos</span>
@@ -13,8 +13,8 @@
       </div>
     </label>
 
-    <label class="sv-ramo-card" :class="{ 'selected': form.ramo === 'GMM' }">
-      <input type="radio" name="ramo" value="GMM" x-model="form.ramo" class="sv-ramo-card__input">
+    <label class="sv-ramo-card" :class="{ 'selected': ramo === 'GMM' }">
+      <input type="radio" name="ramo" value="GMM" x-model="ramo" class="sv-ramo-card__input">
       <div class="sv-ramo-card__inner">
         <div class="sv-ramo-card__icon">❤️</div>
         <span class="sv-ramo-card__title">Gastos Médicos Mayores</span>
@@ -22,8 +22,8 @@
       </div>
     </label>
 
-    <label class="sv-ramo-card" :class="{ 'selected': form.ramo === 'Daños' }">
-      <input type="radio" name="ramo" value="Daños" x-model="form.ramo" class="sv-ramo-card__input">
+    <label class="sv-ramo-card" :class="{ 'selected': ramo === 'Daños' }">
+      <input type="radio" name="ramo" value="Daños" x-model="ramo" class="sv-ramo-card__input">
       <div class="sv-ramo-card__inner">
         <div class="sv-ramo-card__icon">🏠</div>
         <span class="sv-ramo-card__title">Daños</span>
