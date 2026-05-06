@@ -23,7 +23,7 @@ class PolizaController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $query = Poliza::with(['asegurado', 'aseguradora', 'user']);
+        $query = Poliza::with(['asegurado', 'aseguradora', 'user', 'vehiculos']);
 
         // 1. Permissions Check
         if ($user->role !== 'admin') {
@@ -40,6 +40,9 @@ class PolizaController extends Controller
                   })
                   ->orWhereHas('aseguradora', function($sq) use ($search) {
                       $sq->where('nombre', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('vehiculos', function($sq) use ($search) {
+                      $sq->where('vin', 'like', "%{$search}%");
                   });
             });
         }
@@ -83,11 +86,22 @@ class PolizaController extends Controller
             $query->latest();
         }
 
-        $polizas = $query->paginate(15)->withQueryString();
-
         // 4. Data for Filters
         $aseguradoras = Aseguradora::all();
         $agentes = $user->role === 'admin' ? \App\Models\User::where('role', 'agent')->get() : collect();
+
+        if ($request->boolean('partial')) {
+            $polizas = $query->paginate(15)->withQueryString();
+            return response()->json([
+                'rows'       => view('polizas._rows', compact('polizas'))->render(),
+                'pagination' => $polizas->links()->toHtml(),
+                'total'      => $polizas->total(),
+                'from'       => $polizas->firstItem() ?? 0,
+                'to'         => $polizas->lastItem() ?? 0,
+            ]);
+        }
+
+        $polizas = $query->paginate(15)->withQueryString();
 
         return view('polizas.index', compact('polizas', 'aseguradoras', 'agentes'));
     }
@@ -211,32 +225,34 @@ class PolizaController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'ramo' => 'required',
+            'ramo'             => 'required',
+            'asegurado_rfc'    => 'required|string|min:12|max:13',
             'asegurado_nombre' => 'required',
-            'numero_poliza' => 'required|unique:polizas,numero_poliza',
-            'fecha_inicio' => 'required|date',
-            'fecha_fin' => 'required|date|after:fecha_inicio',
-            'prima_neta' => 'required|numeric',
-            'derechos' => 'nullable|numeric',
-            'recargo' => 'nullable|numeric',
-            'iva' => 'required|numeric',
-            'prima_total' => 'required|numeric',
-            'comision' => 'nullable|numeric',
-            'aseguradora_id' => 'required|exists:aseguradoras,id',
-            'direccion_id' => 'nullable|exists:asegurado_direcciones,id',
-            'asegurado_cp' => 'required_without:direccion_id',
-            'asegurado_estado' => 'required_without:direccion_id',
-            'asegurado_municipio' => 'required_without:direccion_id',
-            'asegurado_colonia' => 'required_without:direccion_id',
-            'asegurado_calle' => 'required_without:direccion_id',
-            'asegurado_num_ext' => 'required_without:direccion_id',
-            'archivo_poliza' => 'nullable|file|mimes:pdf|max:10240',
+            'numero_poliza'    => 'required|unique:polizas,numero_poliza',
+            'fecha_inicio'     => 'required|date',
+            'fecha_fin'        => 'required|date|after:fecha_inicio',
+            'prima_neta'       => 'required|numeric|min:0.01',
+            'derechos'         => 'nullable|numeric|min:0',
+            'recargo'          => 'nullable|numeric|min:0',
+            'iva'              => 'required|numeric|min:0',
+            'prima_total'      => 'required|numeric|min:0',
+            'comision'         => 'nullable|numeric|min:0',
+            'aseguradora_id'   => 'required|exists:aseguradoras,id',
+            'direccion_id'     => 'nullable|exists:asegurado_direcciones,id',
+            'asegurado_cp'       => 'required_without:direccion_id',
+            'asegurado_estado'   => 'required_without:direccion_id',
+            'asegurado_municipio'=> 'required_without:direccion_id',
+            'asegurado_colonia'  => 'required_without:direccion_id',
+            'asegurado_calle'    => 'required_without:direccion_id',
+            'asegurado_num_ext'  => 'required_without:direccion_id',
+            'archivo_poliza'   => 'nullable|file|mimes:pdf|max:10240',
+            'archivo_recibo'   => 'nullable|file|mimes:pdf|max:10240',
 
             // Vehicles for Fleet
-            'vehiculos' => 'nullable|array',
-            'vehiculos.*.marca' => 'required_if:ramo,Autos',
-            'vehiculos.*.modelo' => 'required_if:ramo,Autos',
-            'vehiculos.*.vin' => 'nullable|unique:poliza_vehiculos,vin',
+            'vehiculos'           => 'nullable|array',
+            'vehiculos.*.marca'   => 'required_if:ramo,Autos',
+            'vehiculos.*.modelo'  => 'required_if:ramo,Autos',
+            'vehiculos.*.vin'     => 'nullable|unique:poliza_vehiculos,vin',
         ]);
 
         try {
@@ -271,8 +287,14 @@ class PolizaController extends Controller
             }
 
             $filePath = null;
+            $reciboPath = null;
+
             if ($request->hasFile('archivo_poliza')) {
                 $filePath = $request->file('archivo_poliza')->store('polizas', 'public');
+            }
+
+            if ($request->hasFile('archivo_recibo')) {
+                $reciboPath = $request->file('archivo_recibo')->store('recibos', 'public');
             }
 
             if ($request->filled('parent_id')) {
@@ -290,27 +312,28 @@ class PolizaController extends Controller
             }
         }
 
-        $poliza = Poliza::create([
-                'numero_poliza' => $request->numero_poliza,
-                'ramo' => $request->ramo,
-                'user_id' => auth()->id(),
-                'asegurado_id' => $asegurado->id,
+            $poliza = Poliza::create([
+                'numero_poliza'       => $request->numero_poliza,
+                'ramo'                => $request->ramo,
+                'user_id'             => auth()->id(),
+                'asegurado_id'        => $asegurado->id,
                 'asegurado_direccion_id' => $direccionId,
-                'aseguradora_id' => $request->aseguradora_id,
-                'fecha_inicio' => $request->fecha_inicio,
-                'fecha_fin' => $request->fecha_fin,
-                'prima_neta' => $request->prima_neta,
-                'derechos' => $request->derechos ?? 0,
-                'recargo' => $request->recargo ?? 0,
-                'iva' => $request->iva,
-                'prima_total' => $request->prima_total,
-                'comision' => $request->comision ?? 0,
-                'frecuencia_pago' => $request->frecuencia_pago ?? 'Anual',
-                'es_flotilla' => $request->boolean('es_flotilla'),
-                'flotilla_existente' => $request->boolean('flotilla_existente'),
-                'parent_id' => $request->parent_id,
-                'tipo_movimiento' => $request->tipo_movimiento ?? ($request->parent_id ? 'inclusion' : 'emision'),
-                'file_path' => $filePath,
+                'aseguradora_id'      => $request->aseguradora_id,
+                'fecha_inicio'        => $request->fecha_inicio,
+                'fecha_fin'           => $request->fecha_fin,
+                'prima_neta'          => $request->prima_neta,
+                'derechos'            => $request->derechos ?? 0,
+                'recargo'             => $request->recargo ?? 0,
+                'iva'                 => $request->iva,
+                'prima_total'         => $request->prima_total,
+                'comision'            => $request->comision ?? 0,
+                'frecuencia_pago'     => $request->frecuencia_pago ?? 'Anual',
+                'es_flotilla'         => $request->boolean('es_flotilla'),
+                'flotilla_existente'  => $request->boolean('flotilla_existente'),
+                'parent_id'           => $request->parent_id,
+                'tipo_movimiento'     => $request->tipo_movimiento ?? ($request->parent_id ? 'inclusion' : 'emision'),
+                'file_path'           => $filePath,
+                'recibo_path'         => $reciboPath,
             ]);
 
             if ($request->ramo === 'Autos') {
@@ -385,8 +408,15 @@ class PolizaController extends Controller
 
         } catch (\Exception $e) {
             DB::rollBack();
+            // Limpiar archivos huérfanos subidos antes del error de BD
+            if (!empty($filePath)) {
+                Storage::disk('public')->delete($filePath);
+            }
+            if (!empty($reciboPath)) {
+                Storage::disk('public')->delete($reciboPath);
+            }
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Error al guardar la póliza: ' . $e->getMessage()
             ], 500);
         }

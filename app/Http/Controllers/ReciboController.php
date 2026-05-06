@@ -10,7 +10,7 @@ class ReciboController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
-        $query = Recibo::with(['poliza.asegurado', 'poliza.aseguradora', 'poliza.user']);
+        $query = Recibo::with(['poliza.asegurado', 'poliza.aseguradora', 'poliza.user', 'poliza.vehiculos']);
 
         // Permissions Check
         if ($user->role !== 'admin') {
@@ -26,6 +26,9 @@ class ReciboController extends Controller
                 $q->where('numero_poliza', 'like', "%{$search}%")
                   ->orWhereHas('asegurado', function ($sq) use ($search) {
                       $sq->where('nombre', 'like', "%{$search}%");
+                  })
+                  ->orWhereHas('vehiculos', function ($sq) use ($search) {
+                      $sq->where('vin', 'like', "%{$search}%");
                   });
             });
         }
@@ -76,6 +79,17 @@ class ReciboController extends Controller
 
         if ($request->has('export') && $request->export === 'excel') {
             return $this->exportCsv($query);
+        }
+
+        if ($request->boolean('partial')) {
+            $recibos = $query->paginate(15)->withQueryString();
+            return response()->json([
+                'rows'       => view('recibos._rows', compact('recibos'))->render(),
+                'pagination' => $recibos->links()->toHtml(),
+                'total'      => $recibos->total(),
+                'from'       => $recibos->firstItem() ?? 0,
+                'to'         => $recibos->lastItem() ?? 0,
+            ]);
         }
 
         $recibos = $query->paginate(15)->withQueryString();

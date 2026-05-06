@@ -29,8 +29,8 @@
           <svg width="16" viewBox="0 0 24 24" fill="currentColor" class="sv-search-input__icon">
             <path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd"/>
           </svg>
-          <input type="text" name="search" value="{{ request('search') }}" 
-                 placeholder="Buscar por asegurado, póliza, aseguradora..." class="sv-search-input__field">
+          <input type="text" name="search" id="polizas-search" value="{{ request('search') }}" 
+                 placeholder="Buscar por asegurado, póliza, aseguradora o no. de serie (Autos)..." class="sv-search-input__field">
         </div>
 
         <!-- Ramo -->
@@ -134,10 +134,27 @@
           <th>Acciones</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody id="polizas-tbody">
         @forelse($polizas as $poliza)
         <tr class="sv-table__row">
-          <td><span class="sv-mono">{{ $poliza->numero_poliza }}</span></td>
+          <td>
+            <span class="sv-mono">{{ $poliza->numero_poliza }}</span>
+            @if(request('search'))
+              @php
+                $searchTerm = strtolower(request('search'));
+                $matchedVin = $poliza->vehiculos
+                  ->first(fn($v) => str_contains(strtolower($v->vin ?? ''), $searchTerm));
+              @endphp
+              @if($matchedVin)
+                <div style="margin-top: 4px;">
+                  <span class="sv-vin-match-badge">
+                    <svg width="10" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M3.375 4.5C2.339 4.5 1.5 5.34 1.5 6.375V13.5h12V6.375c0-1.036-.84-1.875-1.875-1.875h-8.25ZM13.5 15h-12v2.625c0 1.035.84 1.875 1.875 1.875h.375a3 3 0 1 1 6 0h3a.75.75 0 0 0 .75-.75V15Z"/><path d="M8.25 19.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0ZM15.75 6.75a.75.75 0 0 0-.75.75v11.25c0 .087.015.17.042.248a3 3 0 0 1 5.958.464c.853-.175 1.522-.935 1.464-1.883a18.659 18.659 0 0 0-3.732-10.104 1.837 1.837 0 0 0-1.47-.725H15.75Z"/><path d="M19.5 19.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Z"/></svg>
+                    Serie: {{ strtoupper($matchedVin->vin) }}
+                  </span>
+                </div>
+              @endif
+            @endif
+          </td>
           <td>
             <div class="sv-table__user">
               <div class="sv-table__avatar">{{ strtoupper(substr($poliza->asegurado->nombre, 0, 2)) }}</div>
@@ -207,10 +224,10 @@
 
   <!-- Paginación -->
   <div class="sv-table-footer">
-    <span class="sv-table-footer__info">
+    <span class="sv-table-footer__info" id="polizas-count">
       Mostrando {{ $polizas->firstItem() ?? 0 }}–{{ $polizas->lastItem() ?? 0 }} de {{ $polizas->total() }} pólizas
     </span>
-    <div class="sv-pagination">
+    <div class="sv-pagination" id="polizas-pagination">
       {{ $polizas->links() }}
     </div>
   </div>
@@ -222,6 +239,79 @@
 .sv-table-sort { display: flex; align-items: center; gap: 4px; color: inherit; text-decoration: none; transition: color 0.2s; }
 .sv-table-sort:hover { color: var(--sv-gold-dark); }
 .sv-input--compact { padding: 4px 8px; font-size: 12px; }
+
+.sv-vin-match-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #fffbeb;
+    border: 1px solid #fbbf24;
+    color: #92400e;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    padding: 2px 7px;
+    border-radius: 20px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
 </style>
 
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    const input      = document.getElementById('polizas-search');
+    const tbody      = document.getElementById('polizas-tbody');
+    const pagination = document.getElementById('polizas-pagination');
+    const counter    = document.getElementById('polizas-count');
+    const form       = document.getElementById('filterForm');
+    let   timer      = null;
+    let   controller = null;
+
+    function buildParams() {
+        const data = new FormData(form);
+        data.set('search', input.value);
+        data.set('partial', '1');
+        return new URLSearchParams(data);
+    }
+
+    async function doSearch() {
+        if (controller) controller.abort();
+        controller = new AbortController();
+
+        tbody.style.opacity = '0.4';
+
+        try {
+            const res  = await fetch(`{{ route('polizas.index') }}?${buildParams()}`, {
+                signal: controller.signal,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const data = await res.json();
+
+            tbody.innerHTML = data.rows;
+            tbody.style.opacity = '1';
+
+            if (typeof Alpine !== 'undefined') Alpine.initTree(tbody);
+
+            pagination.innerHTML = data.pagination;
+            counter.textContent = `Mostrando ${data.from}–${data.to} de ${data.total} pólizas`;
+
+            const url = new URL(window.location);
+            if (input.value) { url.searchParams.set('search', input.value); }
+            else             { url.searchParams.delete('search'); }
+            history.replaceState({}, '', url);
+
+        } catch (e) {
+            if (e.name !== 'AbortError') tbody.style.opacity = '1';
+        }
+    }
+
+    input.addEventListener('input', function () {
+        clearTimeout(timer);
+        timer = setTimeout(doSearch, 350);
+    });
+})();
+</script>
+@endpush

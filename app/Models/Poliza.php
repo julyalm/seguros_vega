@@ -28,6 +28,7 @@ class Poliza extends Model
         'flotilla_existente',
         'inciso',
         'file_path',
+        'recibo_path',
         'parent_id',
         'tipo_movimiento',
         'is_active',

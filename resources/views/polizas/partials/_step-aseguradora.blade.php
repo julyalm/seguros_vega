@@ -58,17 +58,26 @@
         this.fileSize = f.size < 1024 * 1024
           ? (f.size / 1024).toFixed(1) + ' KB'
           : (f.size / (1024 * 1024)).toFixed(1) + ' MB';
+      },
+      setFileDrop(f) {
+        if (!f) return;
         const dt = new DataTransfer();
         dt.items.add(f);
-        this.$el.querySelector('input[type=file]').files = dt.files;
+        this.$refs.inputPoliza.files = dt.files;
+        this.setFile(f);
       },
       reset() {
         this.fileName = '';
         this.fileSize = '';
-        this.$el.querySelector('input[type=file]').value = '';
+        this.$refs.inputPoliza.value = '';
       }
     }">
     <label class="sv-field__label">Cargar Póliza (PDF)</label>
+
+    {{-- Input siempre presente en el DOM --}}
+    <input type="file" name="archivo_poliza" accept="application/pdf" style="display:none;"
+      x-ref="inputPoliza"
+      @change="setFile($event.target.files[0])">
 
     {{-- Zona de drop --}}
     <div x-show="!fileName"
@@ -80,8 +89,8 @@
              cursor: pointer; transition: border-color .2s, background .2s;"
       @dragover.prevent="dragging = true"
       @dragleave.prevent="dragging = false"
-      @drop.prevent="dragging = false; setFile($event.dataTransfer.files[0])"
-      @click="$el.querySelector('input[type=file]').click()">
+      @drop.prevent="dragging = false; setFileDrop($event.dataTransfer.files[0])"
+      @click="$refs.inputPoliza.click()">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         stroke-width="1.5" :style="dragging ? 'color: var(--sv-navy)' : 'color: var(--sv-gray-400)'">
         <path stroke-linecap="round" stroke-linejoin="round"
@@ -91,8 +100,6 @@
         <strong style="color: var(--sv-navy);">Selecciona un archivo</strong> o arrástralo aquí
       </span>
       <span style="font-size: 11px; color: var(--sv-gray-400); pointer-events: none;">Solo PDF · Máx. 10 MB</span>
-      <input type="file" name="archivo_poliza" accept="application/pdf" style="display:none;"
-        @change="setFile($event.target.files[0])">
     </div>
 
     {{-- Estado éxito --}}
@@ -134,17 +141,26 @@
         this.fileSize = f.size < 1024 * 1024
           ? (f.size / 1024).toFixed(1) + ' KB'
           : (f.size / (1024 * 1024)).toFixed(1) + ' MB';
+      },
+      setFileDrop(f) {
+        if (!f) return;
         const dt = new DataTransfer();
         dt.items.add(f);
-        this.$el.querySelector('input[type=file]').files = dt.files;
+        this.$refs.inputRecibo.files = dt.files;
+        this.setFile(f);
       },
       reset() {
         this.fileName = '';
         this.fileSize = '';
-        this.$el.querySelector('input[type=file]').value = '';
+        this.$refs.inputRecibo.value = '';
       }
     }">
     <label class="sv-field__label">Cargar Recibo (PDF)</label>
+
+    {{-- Input siempre presente en el DOM --}}
+    <input type="file" name="archivo_recibo" accept="application/pdf" style="display:none;"
+      x-ref="inputRecibo"
+      @change="setFile($event.target.files[0])">
 
     {{-- Zona de drop --}}
     <div x-show="!fileName"
@@ -156,8 +172,8 @@
              cursor: pointer; transition: border-color .2s, background .2s;"
       @dragover.prevent="dragging = true"
       @dragleave.prevent="dragging = false"
-      @drop.prevent="dragging = false; setFile($event.dataTransfer.files[0])"
-      @click="$el.querySelector('input[type=file]').click()">
+      @drop.prevent="dragging = false; setFileDrop($event.dataTransfer.files[0])"
+      @click="$refs.inputRecibo.click()">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         stroke-width="1.5" :style="dragging ? 'color: var(--sv-navy)' : 'color: var(--sv-gray-400)'">
         <path stroke-linecap="round" stroke-linejoin="round"
@@ -167,8 +183,6 @@
         <strong style="color: var(--sv-navy);">Selecciona un archivo</strong> o arrástralo aquí
       </span>
       <span style="font-size: 11px; color: var(--sv-gray-400); pointer-events: none;">Solo PDF · Máx. 10 MB</span>
-      <input type="file" name="archivo_recibo" accept="application/pdf" style="display:none;"
-        @change="setFile($event.target.files[0])">
     </div>
 
     {{-- Estado éxito --}}

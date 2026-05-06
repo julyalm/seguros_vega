@@ -23,8 +23,8 @@
           <svg width="16" viewBox="0 0 24 24" fill="currentColor" class="sv-search-input__icon">
             <path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd"/>
           </svg>
-          <input type="text" name="search" value="{{ request('search') }}"
-                 placeholder="Buscar asegurado o póliza..." class="sv-search-input__field" style="padding: 6px 6px 6px 32px; font-size: 13px;">
+          <input type="text" name="search" id="recibos-search" value="{{ request('search') }}"
+                 placeholder="Buscar asegurado, póliza o no. de serie (Autos)..." class="sv-search-input__field" style="padding: 6px 6px 6px 32px; font-size: 13px;">
         </div>
 
         <!-- Filtro de estado visual -->
@@ -117,10 +117,27 @@
           <th>Acciones</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody id="recibos-tbody">
         @forelse($recibos as $recibo)
         <tr class="sv-table__row {{ !$recibo->is_active ? 'opacity-50' : '' }}" style="{{ !$recibo->is_active ? 'opacity: 0.6; background-color: #fafafa;' : '' }}">
-          <td><span class="sv-mono">{{ $recibo->poliza->numero_poliza }}</span></td>
+          <td>
+            <span class="sv-mono">{{ $recibo->poliza->numero_poliza }}</span>
+            @if(request('search'))
+              @php
+                $searchTerm = strtolower(request('search'));
+                $matchedVin = $recibo->poliza->vehiculos
+                  ->first(fn($v) => str_contains(strtolower($v->vin ?? ''), $searchTerm));
+              @endphp
+              @if($matchedVin)
+                <div style="margin-top: 4px;">
+                  <span class="sv-vin-match-badge">
+                    <svg width="10" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M3.375 4.5C2.339 4.5 1.5 5.34 1.5 6.375V13.5h12V6.375c0-1.036-.84-1.875-1.875-1.875h-8.25ZM13.5 15h-12v2.625c0 1.035.84 1.875 1.875 1.875h.375a3 3 0 1 1 6 0h3a.75.75 0 0 0 .75-.75V15Z"/><path d="M8.25 19.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0ZM15.75 6.75a.75.75 0 0 0-.75.75v11.25c0 .087.015.17.042.248a3 3 0 0 1 5.958.464c.853-.175 1.522-.935 1.464-1.883a18.659 18.659 0 0 0-3.732-10.104 1.837 1.837 0 0 0-1.47-.725H15.75Z"/><path d="M19.5 19.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Z"/></svg>
+                    Serie: {{ strtoupper($matchedVin->vin) }}
+                  </span>
+                </div>
+              @endif
+            @endif
+          </td>
           <td>
             <div class="sv-table__user">
               <div class="sv-table__avatar" style="width: 24px; height: 24px; font-size: 9px;">{{ strtoupper(substr($recibo->poliza->asegurado->nombre, 0, 2)) }}</div>
@@ -228,10 +245,10 @@
 
   <!-- Paginación -->
   <div class="sv-table-footer">
-    <span class="sv-table-footer__info">
+    <span class="sv-table-footer__info" id="recibos-count">
       Mostrando {{ $recibos->firstItem() ?? 0 }}–{{ $recibos->lastItem() ?? 0 }} de {{ $recibos->total() }} recibos
     </span>
-    <div class="sv-pagination">
+    <div class="sv-pagination" id="recibos-pagination">
       {{ $recibos->links() }}
     </div>
   </div>
@@ -249,6 +266,22 @@
 .font-bold { font-weight: 700; }
 .opacity-50 { opacity: 0.5; }
 [x-cloak] { display: none !important; }
+
+.sv-vin-match-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #fffbeb;
+    border: 1px solid #fbbf24;
+    color: #92400e;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    padding: 2px 7px;
+    border-radius: 20px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
 
 /* ── MODALS ──────────────────────────────────────────────── */
 .sv-modal-backdrop {
@@ -371,3 +404,67 @@
 </style>
 
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    const input      = document.getElementById('recibos-search');
+    const tbody      = document.getElementById('recibos-tbody');
+    const pagination = document.getElementById('recibos-pagination');
+    const counter    = document.getElementById('recibos-count');
+    const form       = document.getElementById('filterForm');
+    let   timer      = null;
+    let   controller = null; // AbortController para cancelar peticiones en vuelo
+
+    function buildParams() {
+        const data = new FormData(form);
+        data.set('search', input.value);   // usar el valor actual del input
+        data.set('partial', '1');
+        return new URLSearchParams(data);
+    }
+
+    async function doSearch() {
+        if (controller) controller.abort();
+        controller = new AbortController();
+
+        // Indicador visual de carga
+        tbody.style.opacity = '0.4';
+
+        try {
+            const res  = await fetch(`{{ route('recibos.index') }}?${buildParams()}`, {
+                signal: controller.signal,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const data = await res.json();
+
+            // Actualizar filas
+            tbody.innerHTML = data.rows;
+            tbody.style.opacity = '1';
+
+            // Reinicializar Alpine en el nuevo contenido para que funcionen los @click
+            if (typeof Alpine !== 'undefined') Alpine.initTree(tbody);
+
+            // Actualizar paginación
+            pagination.innerHTML = data.pagination;
+
+            // Actualizar contador
+            counter.textContent = `Mostrando ${data.from}–${data.to} de ${data.total} recibos`;
+
+            // Actualizar la URL sin recargar (para que el botón Limpiar funcione bien)
+            const url = new URL(window.location);
+            if (input.value) { url.searchParams.set('search', input.value); }
+            else             { url.searchParams.delete('search'); }
+            history.replaceState({}, '', url);
+
+        } catch (e) {
+            if (e.name !== 'AbortError') tbody.style.opacity = '1';
+        }
+    }
+
+    input.addEventListener('input', function () {
+        clearTimeout(timer);
+        timer = setTimeout(doSearch, 350);
+    });
+})();
+</script>
+@endpush

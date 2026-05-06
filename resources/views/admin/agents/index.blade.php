@@ -5,7 +5,10 @@
 
 @section('content')
 
-<div class="sv-card" x-data="{ showModal: false }">
+{{-- El x-data envuelve TANTO la tarjeta como el modal para que showModal sea accesible desde ambos --}}
+<div x-data="{ showModal: {{ $errors->any() ? 'true' : 'false' }} }">
+
+  <div class="sv-card">
     <div class="sv-card__header">
       <div class="sv-card__header-left">
         <h3 class="sv-card__title">Lista de Agentes</h3>
@@ -38,7 +41,7 @@
           </tr>
         </thead>
         <tbody>
-          @foreach($agents as $agent)
+          @forelse($agents as $agent)
           <tr class="sv-table__row">
             <td>
               <div class="sv-table__user">
@@ -61,51 +64,73 @@
               </form>
             </td>
           </tr>
-          @endforeach
+          @empty
+          <tr>
+            <td colspan="5" style="text-align:center; color: var(--sv-gray-400); padding: 40px;">
+              No hay agentes registrados aún.
+            </td>
+          </tr>
+          @endforelse
         </tbody>
       </table>
     </div>
-</div>
-
-<!-- Modal para Nuevo Agente (Simulado con Alpine) -->
-<div class="sv-modal-overlay" x-show="showModal" style="display:none;" x-transition>
-  <div class="sv-modal-content" @click.away="showModal = false">
-    <div class="sv-modal-header">
-      <h3 class="sv-modal-title">Registrar Nuevo Agente</h3>
-      <button @click="showModal = false" class="sv-modal-close">&times;</button>
-    </div>
-    
-    <form action="{{ route('admin.agents.store') }}" method="POST" class="sv-modal-body">
-      @csrf
-      <div class="sv-form-grid sv-form-grid--1">
-        <div class="sv-field">
-          <label class="sv-field__label">Nombre completo</label>
-          <input type="text" name="name" class="sv-input" required>
-        </div>
-        <div class="sv-field">
-          <label class="sv-field__label">Correo electrónico</label>
-          <input type="email" name="email" class="sv-input" required>
-        </div>
-        <div class="sv-field">
-          <label class="sv-field__label">Contraseña</label>
-          <input type="password" name="password" class="sv-input" required>
-        </div>
-        <div class="sv-field">
-          <label class="sv-field__label">Confirmar Contraseña</label>
-          <input type="password" name="password_confirmation" class="sv-input" required>
-        </div>
-      </div>
-      
-      <div class="sv-modal-footer">
-        <button type="button" class="sv-btn sv-btn--outline" @click="showModal = false">Cancelar</button>
-        <button type="submit" class="sv-btn sv-btn--primary">Guardar Agente</button>
-      </div>
-    </form>
   </div>
-</div>
+
+  <!-- Modal para Nuevo Agente -->
+  <div class="sv-modal-overlay" x-show="showModal" style="display:none;" x-transition>
+    <div class="sv-modal-content" @click.away="showModal = false">
+      <div class="sv-modal-header">
+        <h3 class="sv-modal-title">Registrar Nuevo Agente</h3>
+        <button @click="showModal = false" class="sv-modal-close">&times;</button>
+      </div>
+
+      <form action="{{ route('admin.agents.store') }}" method="POST" class="sv-modal-body">
+        @csrf
+
+        {{-- Errores de validación --}}
+        @if($errors->any())
+          <div class="sv-alert sv-alert--danger" style="margin-bottom: 16px;">
+            <ul style="margin: 0; padding-left: 18px;">
+              @foreach($errors->all() as $error)
+                <li>{{ $error }}</li>
+              @endforeach
+            </ul>
+          </div>
+        @endif
+
+        <div class="sv-form-grid sv-form-grid--1">
+          <div class="sv-field">
+            <label class="sv-field__label">Nombre completo</label>
+            <input type="text" name="name" class="sv-input {{ $errors->has('name') ? 'sv-input--error' : '' }}"
+                   value="{{ old('name') }}" required>
+          </div>
+          <div class="sv-field">
+            <label class="sv-field__label">Correo electrónico</label>
+            <input type="email" name="email" class="sv-input {{ $errors->has('email') ? 'sv-input--error' : '' }}"
+                   value="{{ old('email') }}" required>
+          </div>
+          <div class="sv-field">
+            <label class="sv-field__label">Contraseña</label>
+            <input type="password" name="password" class="sv-input {{ $errors->has('password') ? 'sv-input--error' : '' }}" required>
+          </div>
+          <div class="sv-field">
+            <label class="sv-field__label">Confirmar Contraseña</label>
+            <input type="password" name="password_confirmation" class="sv-input" required>
+          </div>
+        </div>
+
+        <div class="sv-modal-footer">
+          <button type="button" class="sv-btn sv-btn--outline" @click="showModal = false">Cancelar</button>
+          <button type="submit" class="sv-btn sv-btn--primary">Guardar Agente</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>{{-- /x-data --}}
 
 <style>
-/* Estilos rápidos para el modal experimental */
+/* Modal de Agentes */
 .sv-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .sv-modal-content { background: white; width: 100%; max-width: 500px; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
 .sv-modal-header { padding: 20px 24px; border-bottom: 1px solid var(--sv-gray-100); display: flex; align-items: center; justify-content: space-between; }
@@ -113,6 +138,8 @@
 .sv-modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--sv-gray-400); }
 .sv-modal-body { padding: 24px; }
 .sv-modal-footer { margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end; }
+.sv-alert--danger { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; border-radius: 8px; padding: 10px 14px; font-size: 14px; }
+.sv-input--error { border-color: #dc2626 !important; }
 </style>
 
 @endsection

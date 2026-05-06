@@ -216,4 +216,11 @@ input:checked + .sv-switch__slider:before { transform: translateX(20px); }
 /* Estilos para el Spinner */
 .sv-spinner { animation: sv-rotate 1s linear infinite; vertical-align: middle; }
 @keyframes sv-rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes sv-shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-6px); }
+  40%       { transform: translateX(6px); }
+  60%       { transform: translateX(-4px); }
+  80%       { transform: translateX(4px); }
+}
 </style>
