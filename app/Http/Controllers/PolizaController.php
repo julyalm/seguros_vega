@@ -554,11 +554,11 @@ class PolizaController extends Controller
             'vehiculos.*.marca' => 'required|string|max:100',
             'vehiculos.*.submarca' => 'required|string|max:100',
             'vehiculos.*.modelo' => 'required|integer|min:1900|max:' . (date('Y') + 1),
-            'vehiculos.*.serie' => 'nullable|string|max:50',
+            'vehiculos.*.vin' => 'nullable|string|max:50',
             'vehiculos.*.motor' => 'nullable|string|max:50',
             'vehiculos.*.placas' => 'nullable|string|max:50',
-            'vehiculos.*.vin' => 'nullable|string|max:50',
         ]);
+
 
         try {
             DB::beginTransaction();
@@ -583,7 +583,7 @@ class PolizaController extends Controller
                     'marca' => $vehiculoData['marca'],
                     'submarca' => $vehiculoData['submarca'],
                     'modelo' => $vehiculoData['modelo'], // This is the Year
-                    'vin' => $vehiculoData['vin'] ?? $vehiculoData['serie'] ?? null,
+                    'vin' => $vehiculoData['vin'] ?? null,
                     'motor' => $vehiculoData['motor'] ?? null,
                     'placas' => $vehiculoData['placas'] ?? null,
                 ]);

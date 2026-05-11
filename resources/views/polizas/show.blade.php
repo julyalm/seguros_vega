@@ -166,7 +166,7 @@
                         <tr class="sv-table__row">
                             <td class="sv-mono --bold">#{{ $veh->inciso }}</td>
                             <td class="--bold --navy">{{ $veh->marca }} {{ $veh->submarca }} {{ $veh->modelo }}</td>
-                            <td class="sv-mono --small">{{ $veh->serie }}</td>
+                            <td class="sv-mono --small">{{ $veh->vin }}</td>
                             <td>{{ $veh->placas }}</td>
                             <td>{{ $poliza->fecha_inicio->format('d/m/Y') }} – {{ $poliza->fecha_fin->format('d/m/Y') }}</td>
                         </tr>
@@ -181,7 +181,7 @@
                                         <span class="sv-inclusion-tag">Inclusión: {{ $child->tipo_movimiento ?? 'Unidad' }}</span>
                                     </div>
                                 </td>
-                                <td class="sv-mono --small">{{ $veh->serie }}</td>
+                                <td class="sv-mono --small">{{ $veh->vin }}</td>
                                 <td>{{ $veh->placas }}</td>
                                 <td class="--bold --gold">{{ $child->fecha_inicio->format('d/m/Y') }} – {{ $poliza->fecha_fin->format('d/m/Y') }}</td>
                             </tr>
@@ -535,7 +535,7 @@
                             </div>
                             <div class="sv-form-group">
                                 <label class="sv-form-label">Serie (VIN)</label>
-                                <input type="text" name="vehiculos[{{ $index }}][serie]" value="{{ $vehiculo->serie }}" class="sv-input">
+                                <input type="text" name="vehiculos[{{ $index }}][vin]" value="{{ $vehiculo->vin }}" class="sv-input">
                             </div>
                         </div>
 
