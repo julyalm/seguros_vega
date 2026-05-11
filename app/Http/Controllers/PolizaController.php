@@ -680,6 +680,62 @@ class PolizaController extends Controller
             return back()->with('error', 'Error al actualizar vigencia: ' . $e->getMessage());
         }
     }
+    /**
+     * Descarga segura del PDF de la póliza (evita el 404 del symlink en producción).
+     */
+    public function downloadFile(Poliza $poliza)
+    {
+        // Verificar acceso
+        $user = auth()->user();
+        if ($user->role !== 'admin' && $poliza->user_id !== $user->id) {
+            abort(403);
+        }
+
+        if (!$poliza->file_path) {
+            abort(404, 'No hay archivo de póliza disponible.');
+        }
+
+        if (!Storage::disk('public')->exists($poliza->file_path)) {
+            abort(404, 'El archivo no se encontró en el servidor.');
+        }
+
+        $filename = 'poliza-' . $poliza->numero_poliza . '.pdf';
+
+        return response()->streamDownload(function () use ($poliza) {
+            echo Storage::disk('public')->get($poliza->file_path);
+        }, $filename, [
+            'Content-Type' => 'application/pdf',
+        ]);
+    }
+
+    /**
+     * Descarga segura del PDF del recibo de la póliza.
+     */
+    public function downloadRecibo(Poliza $poliza)
+    {
+        // Verificar acceso
+        $user = auth()->user();
+        if ($user->role !== 'admin' && $poliza->user_id !== $user->id) {
+            abort(403);
+        }
+
+        if (!$poliza->recibo_path) {
+            abort(404, 'No hay archivo de recibo disponible.');
+        }
+
+        if (!Storage::disk('public')->exists($poliza->recibo_path)) {
+            abort(404, 'El archivo de recibo no se encontró en el servidor.');
+        }
+
+        $filename = 'recibo-' . $poliza->numero_poliza . '.pdf';
+
+        return response()->streamDownload(function () use ($poliza) {
+            echo Storage::disk('public')->get($poliza->recibo_path);
+        }, $filename, [
+            'Content-Type' => 'application/pdf',
+        ]);
+    }
+
     public function checkAvailability($numero)
     {
         $exists = Poliza::where('numero_poliza', $numero)->exists();

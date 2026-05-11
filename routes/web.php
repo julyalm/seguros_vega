@@ -16,6 +16,8 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/polizas/{poliza}', [\App\Http\Controllers\PolizaController::class, 'update'])->name('polizas.update');
     Route::post('/polizas', [\App\Http\Controllers\PolizaController::class, 'store'])->name('polizas.store');
     Route::post('/polizas/{poliza}/toggle-active', [\App\Http\Controllers\PolizaController::class, 'toggleActive'])->name('polizas.toggle-active');
+    Route::get('/polizas/{poliza}/download', [\App\Http\Controllers\PolizaController::class, 'downloadFile'])->name('polizas.download');
+    Route::get('/polizas/{poliza}/download-recibo', [\App\Http\Controllers\PolizaController::class, 'downloadRecibo'])->name('polizas.download.recibo');
 
     // Section-specific update routes (admin only)
     Route::middleware(['role:admin'])->group(function () {
