@@ -435,7 +435,7 @@ function polizaWizard() {
       }
     },
     lookupRfc() {
-      if (this.asegurado.rfc.length < 12) return;
+      if (this.asegurado.rfc.length < 11) return;
       this.buscandoRfc = true;
       this.rfcNotFound = false;
 
@@ -514,8 +514,8 @@ function polizaWizard() {
 
       // ── Paso 2: Asegurado ──
       if (label === 'Asegurado') {
-        if (!this.asegurado.rfc || this.asegurado.rfc.length < 12)
-          errors.push('El RFC debe tener al menos 12 caracteres.');
+        if (!this.asegurado.rfc || this.asegurado.rfc.length < 11)
+          errors.push('El RFC debe tener al menos 11 caracteres (persona moral sin homoclave).');
         if (!this.asegurado.nombre?.trim())
           errors.push('El nombre completo del asegurado es obligatorio.');
         if (this.isNewAddress) {

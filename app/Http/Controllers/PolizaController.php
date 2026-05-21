@@ -229,7 +229,7 @@ class PolizaController extends Controller
         $request->validate([
             'ramo'             => 'required',
             'agente_id'        => 'nullable|exists:users,id',
-            'asegurado_rfc'    => 'required|string|min:12|max:13',
+            'asegurado_rfc'    => 'required|string|min:11|max:13',
             'asegurado_nombre' => 'required',
             'numero_poliza'    => 'required|unique:polizas,numero_poliza',
             'fecha_inicio'     => 'required|date',

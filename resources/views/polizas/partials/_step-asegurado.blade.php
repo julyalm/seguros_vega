@@ -10,7 +10,7 @@
       <label class="sv-field__label">RFC <span class="sv-required">*</span></label>
       <div style="position: relative;">
         <input type="text" name="asegurado_rfc" class="sv-input sv-mono" 
-               placeholder="GOML850312AB1" maxlength="13" 
+               placeholder="GOML850312AB1 o GME850312AB" maxlength="13" minlength="11"
                 x-model="asegurado.rfc"
                 @input="asegurado.rfc = $event.target.value.toUpperCase(); lookupRfc();"
                required>
