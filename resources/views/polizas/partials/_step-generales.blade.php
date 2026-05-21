@@ -97,13 +97,28 @@
     </div>
 
     <div class="sv-field">
-      <label class="sv-field__label">Monto de Comisión</label>
+      <label class="sv-field__label" style="display:flex; align-items:center; gap:6px;">
+        Monto de Comisión
+        <span x-show="ramo === 'Autos' && !parentPolicy"
+              style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;
+                     background:var(--sv-gold-light); color:var(--sv-gold); border:1px solid var(--sv-gold);
+                     padding:1px 7px; border-radius:20px;">
+          Auto-calculada
+        </span>
+      </label>
       <div class="sv-input-group">
         <span class="sv-input-group__text" style="background: var(--sv-gold-light);">$</span>
-        <input type="number" name="comision" step="0.01" class="sv-input" 
+        <input type="number" name="comision" step="0.01" class="sv-input"
                placeholder="0.00" x-model="comision" :readonly="parentPolicy">
       </div>
-      <span class="sv-field__hint">Monto pactado para el agente</span>
+      <span class="sv-field__hint">
+        <template x-if="ramo === 'Autos' && !parentPolicy">
+          <span x-text="vehiculos[0]?.tipo === 'Pick-Up' ? 'Pick-Up: 8% de la prima neta' : 'Auto: 10% de la prima neta'"></span>
+        </template>
+        <template x-if="!(ramo === 'Autos' && !parentPolicy)">
+          <span>Monto pactado para el agente</span>
+        </template>
+      </span>
     </div>
 
   </div>

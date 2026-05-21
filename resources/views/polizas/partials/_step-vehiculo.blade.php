@@ -28,11 +28,6 @@
           </select>
         </div>
 
-        <div class="sv-field">
-          <label class="sv-field__label">Número de Póliza <span class="sv-required">*</span></label>
-          <input type="text" :name="`vehiculos[${i}][numero_poliza]`" class="sv-input sv-mono" :value="numeroPoliza"
-            readonly required>
-        </div>
 
         <div class="sv-field">
           <label class="sv-field__label">Modelo (Año) <span class="sv-required">*</span></label>

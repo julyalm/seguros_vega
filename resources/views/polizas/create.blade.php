@@ -191,12 +191,27 @@ function polizaWizard() {
     init() {
       this.initVehicles();
       this.$watch('frecuenciaPago', () => this.recibos = []);
-      this.$watch('prima_neta', () => this.recibos = []);
+      this.$watch('prima_neta', () => { this.recibos = []; this.recalcComision(); });
       this.$watch('iva', () => this.recibos = []);
       this.$watch('derechos', () => this.recibos = []);
       this.$watch('recargo', () => this.recibos = []);
       this.$watch('fechaInicio', () => this.recibos = []);
       this.$watch('flotillaExistente', () => this.recibos = []);
+      // Recalcular comisión si cambia el tipo del primer vehículo
+      this.$watch('vehiculos', () => this.recalcComision(), { deep: true });
+    },
+    // Calcula la comisión según el tipo del primer vehículo (ramo AUTO)
+    // Pick-Up → 8%  |  Auto → 10%
+    recalcComision() {
+      if (this.ramo !== 'Autos' || this.parentPolicy) return;
+      const tipo = this.vehiculos[0]?.tipo;
+      if (!tipo) return;
+      const pNeta = parseFloat(this.prima_neta || 0);
+      if (tipo === 'Pick-Up') {
+        this.comision = parseFloat((pNeta * 0.08).toFixed(2));
+      } else if (tipo === 'Auto') {
+        this.comision = parseFloat((pNeta * 0.10).toFixed(2));
+      }
     },
     updateExpiration() {
       if (!this.fechaInicio) {
@@ -351,15 +366,15 @@ function polizaWizard() {
         { label: 'Agente' },
         { label: 'Ramo' },
         { label: 'Asegurado' },
-        { label: 'Generales' },
-        { label: 'Recibos' },
       ];
 
-      // Solo agregar paso "Detalle" si el ramo es Autos o GMM
+      // Insertar "Detalle" ANTES de "Generales" para Autos y GMM
       if (this.ramo === 'Autos' || this.ramo === 'GMM') {
         baseSteps.push({ label: 'Detalle' });
       }
 
+      baseSteps.push({ label: 'Generales' });
+      baseSteps.push({ label: 'Recibos' });
       baseSteps.push({ label: 'Archivos' });
       return baseSteps;
     },
@@ -420,7 +435,7 @@ function polizaWizard() {
         for (let i = currentCount; i < count; i++) {
           this.vehiculos.push({
             inciso: i + 1,
-            tipo: 'Sedán',
+            tipo: 'Auto',
             modelo: new Date().getFullYear(),
             marca: '',
             submarca: '',
@@ -587,17 +602,17 @@ function polizaWizard() {
     next() {
       if (this.currentStep >= this.steps.length - 1) return;
 
-      // Inicializar recibos al salir del paso Generales
-      if (this.steps[this.currentStep]?.label === 'Generales') {
-        if (this.recibos.length === 0) this.initRecibos();
-      }
-
       if (!this.validateStep()) {
         // Scroll al banner de errores
         this.$nextTick(() => {
           document.getElementById('sv-step-errors')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
         return;
+      }
+
+      // Inicializar recibos al salir del paso Generales
+      if (this.steps[this.currentStep]?.label === 'Generales') {
+        if (this.recibos.length === 0) this.initRecibos();
       }
 
       this.clearStepErrors();
