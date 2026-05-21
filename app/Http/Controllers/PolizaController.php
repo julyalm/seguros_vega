@@ -10,6 +10,7 @@ use App\Models\Recibo;
 use App\Models\PolizaVehiculo;
 use App\Models\PolizaGmm;
 use App\Models\Sepomex;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -88,7 +89,7 @@ class PolizaController extends Controller
 
         // 4. Data for Filters
         $aseguradoras = Aseguradora::all();
-        $agentes = $user->role === 'admin' ? \App\Models\User::where('role', 'agent')->get() : collect();
+        $agentes = $user->role === 'admin' ? \App\Models\User::where('role', 'agente')->get() : collect();
 
         if ($request->boolean('partial')) {
             $polizas = $query->paginate(15)->withQueryString();
@@ -112,7 +113,8 @@ class PolizaController extends Controller
     public function create()
     {
         $aseguradoras = Aseguradora::all();
-        return view('polizas.create', compact('aseguradoras'));
+        $agentes = User::where('role', 'agente')->orderBy('name')->get();
+        return view('polizas.create', compact('aseguradoras', 'agentes'));
     }
 
     /**
@@ -226,6 +228,7 @@ class PolizaController extends Controller
     {
         $request->validate([
             'ramo'             => 'required',
+            'agente_id'        => 'nullable|exists:users,id',
             'asegurado_rfc'    => 'required|string|min:12|max:13',
             'asegurado_nombre' => 'required',
             'numero_poliza'    => 'required|unique:polizas,numero_poliza',
@@ -315,7 +318,7 @@ class PolizaController extends Controller
             $poliza = Poliza::create([
                 'numero_poliza'       => $request->numero_poliza,
                 'ramo'                => $request->ramo,
-                'user_id'             => auth()->id(),
+                'user_id'             => $request->filled('agente_id') ? $request->agente_id : auth()->id(),
                 'asegurado_id'        => $asegurado->id,
                 'asegurado_direccion_id' => $direccionId,
                 'aseguradora_id'      => $request->aseguradora_id,

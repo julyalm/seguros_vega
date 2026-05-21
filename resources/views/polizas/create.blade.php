@@ -93,13 +93,14 @@
     </div>
   </div>
 
-  <div x-show="steps[currentStep]?.label === 'Ramo'">@include('polizas.partials._step-ramo')</div>
+  <div x-show="steps[currentStep]?.label === 'Agente'">@include('polizas.partials._step-agente')</div>
+    <div x-show="steps[currentStep]?.label === 'Ramo'">@include('polizas.partials._step-ramo')</div>
     <div x-show="steps[currentStep]?.label === 'Asegurado'">@include('polizas.partials._step-asegurado')</div>
     <div x-show="steps[currentStep]?.label === 'Generales'">@include('polizas.partials._step-generales')</div>
     <div x-show="steps[currentStep]?.label === 'Recibos'">@include('polizas.partials._step-recibos')</div>
     <div x-show="steps[currentStep]?.label === 'Detalle' && ramo === 'Autos'">@include('polizas.partials._step-vehiculo')</div>
     <div x-show="steps[currentStep]?.label === 'Detalle' && ramo === 'GMM'">@include('polizas.partials._step-gmm')</div>
-    <div x-show="steps[currentStep]?.label === 'Aseguradora'">@include('polizas.partials._step-aseguradora')</div>
+    <div x-show="steps[currentStep]?.label === 'Archivos'">@include('polizas.partials._step-aseguradora')</div>
 
   </div>
 
@@ -110,8 +111,8 @@
     <a href="{{ route('dashboard') }}" class="sv-btn sv-btn--outline sv-btn--ghost">Cancelar</a>
 
     <button type="button" class="sv-btn sv-btn--primary" @click="next()" x-show="currentStep < steps.length - 1"
-            :disabled="currentStep === 3 && parseFloat(totalRecibos) > parseFloat(prima_total)"
-            :title="currentStep === 3 && parseFloat(totalRecibos) > parseFloat(prima_total) ? 'La suma no puede exceder la prima total' : ''">
+            :disabled="steps[currentStep]?.label === 'Recibos' && parseFloat(totalRecibos) > parseFloat(prima_total)"
+            :title="steps[currentStep]?.label === 'Recibos' && parseFloat(totalRecibos) > parseFloat(prima_total) ? 'La suma no puede exceder la prima total' : ''">
       Siguiente →
     </button>
     <button type="submit" class="sv-btn sv-btn--success" x-show="currentStep === steps.length - 1" :disabled="isSubmitting">
@@ -134,6 +135,8 @@ function polizaWizard() {
   return {
     currentStep: 0,
     ramo: null,
+    agente_id: '{{ auth()->user()->role === "admin" ? "" : auth()->id() }}',
+    agente_aseguradora_id: null,
     esFlotilla: false,
     flotillaExistente: false,
     frecuenciaPago: 'Anual',
@@ -345,6 +348,7 @@ function polizaWizard() {
     },
     get steps() {
       const baseSteps = [
+        { label: 'Agente' },
         { label: 'Ramo' },
         { label: 'Asegurado' },
         { label: 'Generales' },
@@ -356,7 +360,7 @@ function polizaWizard() {
         baseSteps.push({ label: 'Detalle' });
       }
 
-      baseSteps.push({ label: 'Aseguradora' });
+      baseSteps.push({ label: 'Archivos' });
       return baseSteps;
     },
     isIncisoUsed(val) {
@@ -488,7 +492,17 @@ function polizaWizard() {
       const errors = [];
       const label = this.steps[this.currentStep]?.label;
 
-      // ── Paso 0: Ramo ──
+      // ── Paso 0: Agente ──
+      if (label === 'Agente') {
+        if (!this.parentPolicy && !this.agente_aseguradora_id)
+          errors.push('Debes seleccionar una aseguradora antes de continuar.');
+        @if(auth()->user()->role === 'admin')
+        if (!this.agente_id)
+          errors.push('Debes seleccionar el agente responsable de esta póliza.');
+        @endif
+      }
+
+      // ── Paso 1: Ramo ──
       if (label === 'Ramo') {
         if (!this.ramo) errors.push('Debes seleccionar un ramo para continuar.');
         if (this.esFlotilla && this.flotillaExistente) {
@@ -498,7 +512,7 @@ function polizaWizard() {
         }
       }
 
-      // ── Paso 1: Asegurado ──
+      // ── Paso 2: Asegurado ──
       if (label === 'Asegurado') {
         if (!this.asegurado.rfc || this.asegurado.rfc.length < 12)
           errors.push('El RFC debe tener al menos 12 caracteres.');
@@ -517,7 +531,7 @@ function polizaWizard() {
         }
       }
 
-      // ── Paso 2: Generales ──
+      // ── Paso 3: Generales ──
       if (label === 'Generales') {
         if (!this.numeroPoliza?.trim())
           errors.push('El número de póliza es obligatorio.');
@@ -533,7 +547,7 @@ function polizaWizard() {
           errors.push('El IVA es obligatorio (puede ser 0).');
       }
 
-      // ── Paso 3: Recibos ──
+      // ── Paso 4: Recibos ──
       if (label === 'Recibos') {
         if (this.recibos.length === 0)
           errors.push('Debes generar al menos un recibo antes de continuar.');
@@ -557,13 +571,8 @@ function polizaWizard() {
           errors.push('Los incisos de los vehículos deben ser únicos entre sí.');
       }
 
-      // ── Último paso: Aseguradora ──
-      if (label === 'Aseguradora') {
-        if (!this.parentPolicy) {
-          const asegInput = document.querySelector('input[name="aseguradora_id"]:checked');
-          if (!asegInput) errors.push('Debes seleccionar una aseguradora.');
-        }
-      }
+      // ── Último paso: Archivos (sin validación obligatoria) ──
+      // Los archivos son opcionales, no se valida nada aquí.
 
       this.stepErrors = errors;
       this.showStepErrors = errors.length > 0;
