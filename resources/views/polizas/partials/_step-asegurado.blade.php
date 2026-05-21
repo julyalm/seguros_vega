@@ -155,17 +155,14 @@
 
     <div class="sv-field">
       <label class="sv-field__label">Colonia <span class="sv-required">*</span></label>
-      <template x-if="asegurado.colonias.length > 0">
-        <select name="asegurado_colonia" class="sv-select" x-model="asegurado.colonia" :required="isNewAddress">
-          <template x-for="col in asegurado.colonias" :key="col">
-            <option :value="col" x-text="col"></option>
-          </template>
-        </select>
-      </template>
-      <template x-if="asegurado.colonias.length === 0">
-        <input type="text" name="asegurado_colonia" class="sv-input" 
-               placeholder="Escribe la colonia" x-model="asegurado.colonia" :required="isNewAddress">
-      </template>
+      <input type="text" name="asegurado_colonia" class="sv-input" 
+             placeholder="Escribe la colonia" x-model="asegurado.colonia" :required="isNewAddress"
+             list="colonias-list">
+      <datalist id="colonias-list">
+        <template x-for="col in asegurado.colonias" :key="col">
+          <option :value="col"></option>
+        </template>
+      </datalist>
     </div>
 
     <div class="sv-field">
