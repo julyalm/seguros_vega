@@ -113,7 +113,7 @@ class PolizaController extends Controller
     public function create()
     {
         $aseguradoras = Aseguradora::all();
-        $agentes = User::where('role', 'agente')->orderBy('name')->get();
+        $agentes = User::whereIn('role', ['agente', 'admin'])->orderBy('name')->get();
         return view('polizas.create', compact('aseguradoras', 'agentes'));
     }
 
