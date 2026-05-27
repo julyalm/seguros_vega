@@ -25,6 +25,8 @@
           <select :name="`vehiculos[${i}][tipo]`" class="sv-select" x-model="veh.tipo" required>
             <option value="Auto">Auto</option>
             <option value="Pick-Up">Pick-Up</option>
+            <option value="Tractos">Tractos</option>
+            <option value="Equipo Pesado">Equipo Pesado</option>
           </select>
         </div>
 

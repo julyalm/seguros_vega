@@ -113,7 +113,7 @@
       </div>
       <span class="sv-field__hint">
         <template x-if="ramo === 'Autos' && !parentPolicy">
-          <span x-text="vehiculos[0]?.tipo === 'Pick-Up' ? 'Pick-Up: 8% de la prima neta' : 'Auto: 10% de la prima neta'"></span>
+          <span x-text="['Pick-Up','Tractos','Equipo Pesado'].includes(vehiculos[0]?.tipo) ? vehiculos[0]?.tipo + ': 8% de la prima neta' : 'Auto: 10% de la prima neta'"></span>
         </template>
         <template x-if="!(ramo === 'Autos' && !parentPolicy)">
           <span>Monto pactado para el agente</span>

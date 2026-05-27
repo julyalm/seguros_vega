@@ -201,13 +201,13 @@ function polizaWizard() {
       this.$watch('vehiculos', () => this.recalcComision(), { deep: true });
     },
     // Calcula la comisión según el tipo del primer vehículo (ramo AUTO)
-    // Pick-Up → 8%  |  Auto → 10%
+    // Pick-Up / Tractos / Equipo Pesado → 8%  |  Auto → 10%
     recalcComision() {
       if (this.ramo !== 'Autos' || this.parentPolicy) return;
       const tipo = this.vehiculos[0]?.tipo;
       if (!tipo) return;
       const pNeta = parseFloat(this.prima_neta || 0);
-      if (tipo === 'Pick-Up') {
+      if (['Pick-Up', 'Tractos', 'Equipo Pesado'].includes(tipo)) {
         this.comision = parseFloat((pNeta * 0.08).toFixed(2));
       } else if (tipo === 'Auto') {
         this.comision = parseFloat((pNeta * 0.10).toFixed(2));
