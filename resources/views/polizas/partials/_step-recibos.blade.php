@@ -20,6 +20,35 @@
     </div>
   </div>
 
+  {{-- ── Aviso modo Chubb ── --}}
+  <div x-show="isChubb && recibos.length > 0" x-transition style="margin-bottom: 20px; display: none;">
+    <div class="sv-chubb-notice">
+      <div class="sv-chubb-notice__icon">
+        <svg width="22" viewBox="0 0 24 24" fill="currentColor">
+          <path fill-rule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003ZM12 8.25a.75.75 0 0 1 .75.75v3.75a.75.75 0 0 1-1.5 0V9a.75.75 0 0 1 .75-.75Zm0 8.25a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd"/>
+        </svg>
+      </div>
+      <div class="sv-chubb-notice__body">
+        <p class="sv-chubb-notice__title">Modo Chubb — Captura manual de importes</p>
+        <p class="sv-chubb-notice__desc">
+          Los importes de los recibos han sido reiniciados a <strong>$0.00</strong>. 
+          Ingresa los montos usando el ícono del lápiz <svg width="11" style="display:inline;margin:0 2px" viewBox="0 0 24 24" fill="currentColor"><path d="M21.731 2.269a2.625 2.625 0 0 0-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 0 0 0-3.712ZM19.513 8.199l-3.712-3.712-12.15 12.15a5.25 5.25 0 0 0-1.32 2.214l-.8 2.685a.75.75 0 0 0 .933.933l2.685-.8a5.25 5.25 0 0 0 2.214-1.32L19.513 8.199Z"/></svg> en cada recibo.<br>
+          Prima total de referencia:&nbsp;<strong x-text="'$' + prima_total"></strong>
+          &nbsp;&nbsp;|&nbsp;&nbsp;
+          Total capturado:&nbsp;<strong x-text="'$' + totalRecibos"></strong>
+          &nbsp;&nbsp;|&nbsp;&nbsp;
+          Diferencia:&nbsp;<strong
+            :class="Math.abs(parseFloat(totalRecibos) - parseFloat(prima_total)) > 10 ? 'sv-chubb-diff--bad' : 'sv-chubb-diff--ok'"
+            x-text="'$' + (parseFloat(totalRecibos) - parseFloat(prima_total)).toFixed(2)">
+          </strong>
+        </p>
+        <p class="sv-chubb-notice__rule" x-show="Math.abs(parseFloat(totalRecibos) - parseFloat(prima_total)) > 10">
+          ⛔ La diferencia supera $10.00 — ajusta los importes para poder continuar.
+        </p>
+      </div>
+    </div>
+  </div>
+
   <div class="sv-receipt-preview" x-show="recibos.length > 0" x-transition>
     
     <!-- Resumen rápido -->
@@ -448,4 +477,47 @@
     color: var(--sv-gray-200);
     margin-bottom: 16px;
 }
+/* Chubb Mode Notice */
+.sv-chubb-notice {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    background: #fff8f0;
+    border: 1.5px solid #E31837;
+    border-left: 5px solid #E31837;
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: 0 4px 12px rgba(227, 24, 55, 0.08);
+}
+.sv-chubb-notice__icon {
+    color: #E31837;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+.sv-chubb-notice__body { flex: 1; }
+.sv-chubb-notice__title {
+    margin: 0 0 6px;
+    font-size: 13px;
+    font-weight: 800;
+    color: #C0112B;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.sv-chubb-notice__desc {
+    margin: 0;
+    font-size: 13px;
+    color: #7b2c34;
+    line-height: 1.6;
+}
+.sv-chubb-notice__rule {
+    margin: 8px 0 0;
+    font-size: 12px;
+    font-weight: 700;
+    color: #dc2626;
+    background: #fee2e2;
+    padding: 6px 10px;
+    border-radius: 6px;
+}
+.sv-chubb-diff--ok  { color: #16a34a; }
+.sv-chubb-diff--bad { color: #dc2626; }
 </style>

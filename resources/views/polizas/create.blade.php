@@ -111,8 +111,14 @@
     <a href="{{ route('dashboard') }}" class="sv-btn sv-btn--outline sv-btn--ghost">Cancelar</a>
 
     <button type="button" class="sv-btn sv-btn--primary" @click="next()" x-show="currentStep < steps.length - 1"
-            :disabled="steps[currentStep]?.label === 'Recibos' && parseFloat(totalRecibos) > parseFloat(prima_total)"
-            :title="steps[currentStep]?.label === 'Recibos' && parseFloat(totalRecibos) > parseFloat(prima_total) ? 'La suma no puede exceder la prima total' : ''">
+            :disabled="steps[currentStep]?.label === 'Recibos' && (
+              parseFloat(totalRecibos) > parseFloat(prima_total) ||
+              (isChubb && Math.abs(parseFloat(totalRecibos) - parseFloat(prima_total)) > 10)
+            )"
+            :title="steps[currentStep]?.label === 'Recibos' ? (
+              parseFloat(totalRecibos) > parseFloat(prima_total) ? 'La suma no puede exceder la prima total' :
+              (isChubb && Math.abs(parseFloat(totalRecibos) - parseFloat(prima_total)) > 10) ? 'La diferencia no puede ser mayor a $10.00' : ''
+            ) : ''">
       Siguiente →
     </button>
     <button type="submit" class="sv-btn sv-btn--success" x-show="currentStep === steps.length - 1" :disabled="isSubmitting">
@@ -137,6 +143,7 @@ function polizaWizard() {
     ramo: null,
     agente_id: '{{ auth()->user()->role === "admin" ? "" : auth()->id() }}',
     agente_aseguradora_id: null,
+    chubbId: {{ $aseguradoras->firstWhere('nombre', 'Chubb')?->id ?? 'null' }},
     esFlotilla: false,
     flotillaExistente: false,
     frecuenciaPago: 'Anual',
@@ -187,6 +194,9 @@ function polizaWizard() {
               parseFloat(this.derechos || 0) +
               parseFloat(this.recargo || 0) +
               parseFloat(this.iva || 0)).toFixed(2);
+    },
+    get isChubb() {
+      return this.chubbId !== null && String(this.agente_aseguradora_id) === String(this.chubbId);
     },
     init() {
       this.initVehicles();
@@ -323,12 +333,13 @@ function polizaWizard() {
 
         let der = (i === 0 && !this.parentPolicy) ? pDerechos : 0;
 
+        // Chubb: zero out all amounts so the user fills them manually
         const r = {
           indice: i + 1,
-          prima_neta: currentNeta,
-          derechos: der,
-          recargo: currentRec,
-          iva: currentIva,
+          prima_neta: this.isChubb ? 0 : currentNeta,
+          derechos:   this.isChubb ? 0 : der,
+          recargo:    this.isChubb ? 0 : currentRec,
+          iva:        this.isChubb ? 0 : currentIva,
           fecha_inicio_vigencia: start.toISOString().split('T')[0],
           fecha_fin_vigencia: end.toISOString().split('T')[0],
         };
@@ -566,6 +577,13 @@ function polizaWizard() {
       if (label === 'Recibos') {
         if (this.recibos.length === 0)
           errors.push('Debes generar al menos un recibo antes de continuar.');
+        if (parseFloat(this.totalRecibos) > parseFloat(this.prima_total))
+          errors.push('La suma de los recibos no puede ser mayor a la prima total.');
+        if (this.isChubb) {
+          const diff = Math.abs(parseFloat(this.totalRecibos) - parseFloat(this.prima_total));
+          if (diff > 10)
+            errors.push(`La diferencia entre el total de recibos ($${parseFloat(this.totalRecibos).toFixed(2)}) y la prima total ($${parseFloat(this.prima_total).toFixed(2)}) es $${diff.toFixed(2)}, no puede exceder $10.00.`);
+        }
       }
 
       // ── Paso Detalle: Autos ──

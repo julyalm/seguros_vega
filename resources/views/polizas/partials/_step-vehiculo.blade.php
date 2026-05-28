@@ -10,15 +10,12 @@
         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--sv-gray-100); padding-bottom: 12px;">
         <h4 style="margin: 0; color: var(--sv-navy); font-weight: 700;">
           Vehículo #<span x-text="i + 1"></span>
-          <span style="margin-left: 8px; font-weight: 400; font-size: 13px; color: var(--sv-gray-500);">(Inciso <span
-              x-text="veh.inciso"></span>)</span>
         </h4>
         <span x-show="veh.marca" x-text="veh.marca + ' ' + veh.submarca"
           style="font-size: 13px; font-weight: 600; color: var(--sv-gold);"></span>
       </div>
 
       <div class="sv-form-grid sv-form-grid--2">
-        <input type="hidden" :name="`vehiculos[${i}][inciso]`" x-model="veh.inciso">
 
         <div class="sv-field">
           <label class="sv-field__label">Tipo <span class="sv-required">*</span></label>
@@ -73,22 +70,6 @@
           <input type="text" :name="`vehiculos[${i}][motor]`" class="sv-input sv-mono" x-model="veh.motor">
         </div>
 
-        <div class="sv-field">
-          <label class="sv-field__label">Inciso / Ítem <span class="sv-required">*</span></label>
-          <input type="number" :name="`vehiculos[${i}][inciso]`" class="sv-input sv-mono" x-model="veh.inciso"
-            placeholder="Ej: 1" required
-            :style="isIncisoUsed(veh.inciso) ? 'border-color: var(--sv-red-600); background: rgba(220,38,38,0.05);' : ''">
-
-          <div x-show="isIncisoUsed(veh.inciso)"
-            style="margin-top: 8px; color: var(--sv-red-600); font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-            Este inciso ya existe en la flotilla
-          </div>
-        </div>
 
       </div>
     </div>
