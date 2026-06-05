@@ -171,10 +171,18 @@
           <td class="sv-mono" style="font-weight: 700; color: var(--sv-navy);">${{ number_format($poliza->prima_total, 2) }}</td>
           @if(auth()->user()->role === 'admin') 
           <td>
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--sv-gray-100); color: var(--sv-gray-600); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700;">{{ strtoupper(substr($poliza->user->name, 0, 1)) }}</div>
-                <span class="sv-tag sv-tag--outline" style="font-size: 11px;">{{ $poliza->user->name }}</span>
-            </div>
+            <button
+              type="button"
+              class="sv-agent-reassign-btn"
+              title="Reasignar agente"
+              onclick="openReassignModal({{ $poliza->id }}, '{{ addslashes($poliza->user->name) }}', {{ $poliza->user_id }})"
+            >
+              <div class="sv-agent-reassign-btn__avatar">{{ strtoupper(substr($poliza->user->name, 0, 1)) }}</div>
+              <span class="sv-agent-reassign-btn__name">{{ $poliza->user->name }}</span>
+              <svg class="sv-agent-reassign-btn__edit-icon" width="12" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21.731 2.269a2.625 2.625 0 0 0-3.712 0l-1.157 1.157 3.712 3.712 1.157-1.157a2.625 2.625 0 0 0 0-3.712ZM19.513 8.199l-3.712-3.712-12.15 12.15a5.25 5.25 0 0 0-1.32 2.214l-.8 2.685a.75.75 0 0 0 .933.933l2.685-.8a5.25 5.25 0 0 0 2.214-1.32L19.513 8.2Z"/>
+              </svg>
+            </button>
           </td> 
           @endif
           <td>
@@ -255,9 +263,137 @@
     letter-spacing: 0.3px;
     white-space: nowrap;
 }
+
+/* ── Agent Reassign Button ──────────────────────── */
+.sv-agent-reassign-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 20px;
+    padding: 3px 8px 3px 4px;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+    transition: background 0.15s, border-color 0.15s;
+}
+.sv-agent-reassign-btn:hover {
+    background: var(--sv-gray-50);
+    border-color: var(--sv-gray-200);
+}
+.sv-agent-reassign-btn__avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--sv-gray-100);
+    color: var(--sv-gray-600);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.sv-agent-reassign-btn__name {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--sv-gray-700);
+}
+.sv-agent-reassign-btn__edit-icon {
+    color: var(--sv-gray-400);
+    opacity: 0;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+}
+.sv-agent-reassign-btn:hover .sv-agent-reassign-btn__edit-icon { opacity: 1; }
+
+/* ── Reassign Modal ──────────────────────────────── */
+.sv-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 15, 30, 0.55);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: svFadeIn 0.18s ease;
+}
+@keyframes svFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.sv-modal {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+    width: 100%;
+    max-width: 420px;
+    overflow: hidden;
+    animation: svSlideUp 0.2s ease;
+}
+@keyframes svSlideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.sv-modal__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--sv-gray-100);
+}
+.sv-modal__title { font-size: 16px; font-weight: 700; color: var(--sv-navy); margin: 0 0 2px; }
+.sv-modal__subtitle { font-size: 12px; color: var(--sv-gray-500); margin: 0; }
+.sv-modal__close {
+    background: none; border: none; cursor: pointer; padding: 4px;
+    color: var(--sv-gray-400); border-radius: 8px;
+    transition: background 0.15s, color 0.15s;
+}
+.sv-modal__close:hover { background: var(--sv-gray-100); color: var(--sv-gray-700); }
+.sv-modal__body { padding: 20px 24px; }
+.sv-modal__label { display: block; font-size: 12px; font-weight: 600; color: var(--sv-gray-600); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+.sv-modal__current-agent { font-size: 12px; color: var(--sv-gray-500); margin: 12px 0 0; }
+.sv-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--sv-gray-100);
+    background: var(--sv-gray-50);
+}
 </style>
 
 @endsection
+
+@if(auth()->user()->role === 'admin')
+{{-- ══ MODAL REASIGNACIÓN DE AGENTE ════════════════════════════ --}}
+<div id="reassign-modal" class="sv-modal-backdrop" style="display:none;" onclick="closeReassignModal(event)">
+  <div class="sv-modal" role="dialog" aria-modal="true" aria-labelledby="reassign-modal-title">
+    <div class="sv-modal__header">
+      <div>
+        <h4 class="sv-modal__title" id="reassign-modal-title">Reasignar Agente</h4>
+        <p class="sv-modal__subtitle" id="reassign-modal-poliza-info">Póliza</p>
+      </div>
+      <button type="button" class="sv-modal__close" onclick="closeReassignModal()" aria-label="Cerrar">
+        <svg width="18" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
+      </button>
+    </div>
+    <form id="reassign-form" method="POST">
+      @csrf
+      @method('PUT')
+      <div class="sv-modal__body">
+        <label class="sv-modal__label" for="reassign-select">Selecciona el nuevo agente</label>
+        <select id="reassign-select" name="user_id" class="sv-select" style="width:100%;">
+          @foreach($agentes as $ag)
+            <option value="{{ $ag->id }}">{{ $ag->name }}</option>
+          @endforeach
+        </select>
+        <p class="sv-modal__current-agent">Agente actual: <strong id="reassign-current-name"></strong></p>
+      </div>
+      <div class="sv-modal__footer">
+        <button type="button" class="sv-btn sv-btn--outline sv-btn--sm" onclick="closeReassignModal()">Cancelar</button>
+        <button type="submit" class="sv-btn sv-btn--primary sv-btn--sm">Guardar cambio</button>
+      </div>
+    </form>
+  </div>
+</div>
+@endif
 
 @push('scripts')
 <script>
@@ -314,4 +450,43 @@
     });
 })();
 </script>
+
+@if(auth()->user()->role === 'admin')
+<script>
+(function () {
+    const modal     = document.getElementById('reassign-modal');
+    const form      = document.getElementById('reassign-form');
+    const select    = document.getElementById('reassign-select');
+    const subtitle  = document.getElementById('reassign-modal-poliza-info');
+    const curName   = document.getElementById('reassign-current-name');
+    const baseRoute = '{{ rtrim(url('/polizas'), '/') }}';
+
+    window.openReassignModal = function (polizaId, agentName, agentId) {
+        form.action = `${baseRoute}/${polizaId}/reassign-agent`;
+        subtitle.textContent = `Póliza ID #${polizaId}`;
+        curName.textContent = agentName;
+        // pre-select current agent
+        Array.from(select.options).forEach(opt => {
+            opt.selected = parseInt(opt.value) === parseInt(agentId);
+        });
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        select.focus();
+    };
+
+    window.closeReassignModal = function (e) {
+        if (e && e.target !== modal) return; // only close on backdrop click
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    };
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal.style.display === 'flex') {
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+    });
+})();
+</script>
+@endif
 @endpush

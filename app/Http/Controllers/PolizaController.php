@@ -89,7 +89,7 @@ class PolizaController extends Controller
 
         // 4. Data for Filters
         $aseguradoras = Aseguradora::all();
-        $agentes = $user->role === 'admin' ? \App\Models\User::where('role', 'agente')->get() : collect();
+        $agentes = $user->role === 'admin' ? \App\Models\User::whereIn('role', ['agente', 'admin'])->orderBy('name')->get() : collect();
 
         if ($request->boolean('partial')) {
             $polizas = $query->paginate(15)->withQueryString();
@@ -737,6 +737,24 @@ class PolizaController extends Controller
         }, $filename, [
             'Content-Type' => 'application/pdf',
         ]);
+    }
+
+    /**
+     * Reassign a policy to a different agent (Admin only).
+     */
+    public function reassignAgent(Request $request, Poliza $poliza)
+    {
+        if (auth()->user()->role !== 'admin') {
+            abort(403, 'No tienes permiso para reasignar pólizas.');
+        }
+
+        $validated = $request->validate([
+            'user_id' => 'required|exists:users,id',
+        ]);
+
+        $poliza->update(['user_id' => $validated['user_id']]);
+
+        return back()->with('success', 'Agente reasignado correctamente.');
     }
 
     public function checkAvailability($numero)
