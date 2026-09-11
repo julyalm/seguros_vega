@@ -985,35 +985,59 @@
             <div class="sv-modal__body --scrollable">
                 <form action="{{ route('polizas.update.documentos', $poliza->id) }}" method="POST" enctype="multipart/form-data" class="sv-form-stack"
                     x-data="{
+                        maxKb: {{ $maxUploadKb }},
+                        maxTexto: '{{ $maxUploadTexto }}',
                         archivos: { poliza: '', recibo: '' },
+                        errores: { poliza: '', recibo: '' },
                         arrastrando: { poliza: false, recibo: false },
-                        etiqueta(f) {
-                            const peso = f.size < 1024 * 1024
-                                ? (f.size / 1024).toFixed(1) + ' KB'
-                                : (f.size / (1024 * 1024)).toFixed(1) + ' MB';
-                            return f.name + ' - ' + peso;
+                        refDe(campo) {
+                            return 'input' + campo.charAt(0).toUpperCase() + campo.slice(1);
+                        },
+                        peso(bytes) {
+                            return bytes < 1024 * 1024
+                                ? (bytes / 1024).toFixed(1) + ' KB'
+                                : (bytes / (1024 * 1024)).toFixed(1) + ' MB';
                         },
                         seleccionar(campo, f) {
                             if (!f) return;
-                            this.archivos[campo] = this.etiqueta(f);
+                            this.errores[campo] = '';
+
+                            // Se corta aqui a proposito: si el archivo excede el limite
+                            // del servidor, PHP descarta el POST (y con el, el token CSRF)
+                            // y el usuario acaba viendo un 419 en vez de un mensaje util.
+                            if (f.size / 1024 > this.maxKb) {
+                                this.errores[campo] = 'Este archivo pesa ' + this.peso(f.size)
+                                    + ' y el servidor acepta como máximo ' + this.maxTexto + '.';
+                                this.limpiar(campo);
+                                return;
+                            }
+
+                            if (!/\.pdf$/i.test(f.name)) {
+                                this.errores[campo] = 'El archivo debe ser un PDF.';
+                                this.limpiar(campo);
+                                return;
+                            }
+
+                            this.archivos[campo] = f.name + ' - ' + this.peso(f.size);
                         },
-                        soltar(campo, ref, f) {
+                        soltar(campo, f) {
                             if (!f) return;
                             const dt = new DataTransfer();
                             dt.items.add(f);
-                            this.$refs[ref].files = dt.files;
+                            this.$refs[this.refDe(campo)].files = dt.files;
                             this.seleccionar(campo, f);
                         },
-                        limpiar(campo, ref) {
+                        limpiar(campo) {
                             this.archivos[campo] = '';
-                            this.$refs[ref].value = '';
+                            this.$refs[this.refDe(campo)].value = '';
                         }
                     }">
                     @csrf
 
                     <p class="sv-form-hint">
-                        Sube solo los documentos que quieras reemplazar. Formato PDF, máximo 10 MB por archivo.
-                        El archivo anterior se elimina del servidor al guardar.
+                        Puedes reemplazar solo uno de los dos o ambos: se actualiza únicamente lo que subas.
+                        Formato PDF, máximo {{ $maxUploadTexto }} por archivo. El archivo anterior se elimina
+                        del servidor al guardar.
                     </p>
 
                     <!-- Póliza -->
@@ -1025,7 +1049,7 @@
                         <div x-show="!archivos.poliza" class="sv-dropzone" :class="arrastrando.poliza && '--active'"
                             @dragover.prevent="arrastrando.poliza = true"
                             @dragleave.prevent="arrastrando.poliza = false"
-                            @drop.prevent="arrastrando.poliza = false; soltar('poliza', 'inputPoliza', $event.dataTransfer.files[0])"
+                            @drop.prevent="arrastrando.poliza = false; soltar('poliza', $event.dataTransfer.files[0])"
                             @click="$refs.inputPoliza.click()">
                             <svg width="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
                             <span><strong>Selecciona un archivo</strong> o arrástralo aquí</span>
@@ -1033,8 +1057,10 @@
 
                         <div x-show="archivos.poliza" x-cloak class="sv-dropzone__file">
                             <span class="sv-dropzone__name" x-text="archivos.poliza"></span>
-                            <button type="button" @click="limpiar('poliza', 'inputPoliza')" class="sv-dropzone__remove">Quitar</button>
+                            <button type="button" @click="limpiar('poliza')" class="sv-dropzone__remove">Quitar</button>
                         </div>
+
+                        <p x-show="errores.poliza" x-cloak class="sv-form-error" x-text="errores.poliza"></p>
                     </div>
 
                     <!-- Recibo -->
@@ -1046,7 +1072,7 @@
                         <div x-show="!archivos.recibo" class="sv-dropzone" :class="arrastrando.recibo && '--active'"
                             @dragover.prevent="arrastrando.recibo = true"
                             @dragleave.prevent="arrastrando.recibo = false"
-                            @drop.prevent="arrastrando.recibo = false; soltar('recibo', 'inputRecibo', $event.dataTransfer.files[0])"
+                            @drop.prevent="arrastrando.recibo = false; soltar('recibo', $event.dataTransfer.files[0])"
                             @click="$refs.inputRecibo.click()">
                             <svg width="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
                             <span><strong>Selecciona un archivo</strong> o arrástralo aquí</span>
@@ -1054,8 +1080,10 @@
 
                         <div x-show="archivos.recibo" x-cloak class="sv-dropzone__file">
                             <span class="sv-dropzone__name" x-text="archivos.recibo"></span>
-                            <button type="button" @click="limpiar('recibo', 'inputRecibo')" class="sv-dropzone__remove">Quitar</button>
+                            <button type="button" @click="limpiar('recibo')" class="sv-dropzone__remove">Quitar</button>
                         </div>
+
+                        <p x-show="errores.recibo" x-cloak class="sv-form-error" x-text="errores.recibo"></p>
                     </div>
 
                     @error('archivo_poliza')<span class="sv-form-error">{{ $message }}</span>@enderror

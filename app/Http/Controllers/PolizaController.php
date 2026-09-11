@@ -124,7 +124,10 @@ class PolizaController extends Controller
     {
         $poliza->load(['asegurado', 'aseguradora', 'recibos', 'vehiculos', 'parent', 'children', 'children.vehiculos']);
 
-        return view('polizas.show', compact('poliza'));
+        $maxUploadKb = $this->limiteSubidaKb();
+        $maxUploadTexto = $this->limiteLegible($maxUploadKb);
+
+        return view('polizas.show', compact('poliza', 'maxUploadKb', 'maxUploadTexto'));
     }
 
     /**
@@ -953,6 +956,51 @@ class PolizaController extends Controller
     }
 
     /**
+     * Limite real de subida en KB: el menor entre lo que permite el servidor
+     * (upload_max_filesize y post_max_size) y el tope propio de la aplicacion.
+     *
+     * PHP rechaza los archivos que exceden upload_max_filesize antes de que
+     * Laravel los vea, asi que anunciar un maximo mayor al del servidor solo
+     * produce errores confusos.
+     */
+    private function limiteSubidaKb(): int
+    {
+        $aBytes = static function ($valor): int {
+            $valor = trim((string) $valor);
+            if ($valor === '') {
+                return 0;
+            }
+
+            $numero = (float) $valor;
+
+            return match (strtolower(substr($valor, -1))) {
+                'g' => (int) ($numero * 1024 * 1024 * 1024),
+                'm' => (int) ($numero * 1024 * 1024),
+                'k' => (int) ($numero * 1024),
+                default => (int) $numero,
+            };
+        };
+
+        $limites = array_filter([
+            $aBytes(ini_get('upload_max_filesize')),
+            $aBytes(ini_get('post_max_size')),
+        ]);
+        $limites[] = 10 * 1024 * 1024; // tope propio: 10 MB
+
+        return max(1, (int) floor(min($limites) / 1024));
+    }
+
+    /**
+     * Formatea un limite en KB para mostrarlo al usuario.
+     */
+    private function limiteLegible(int $kb): string
+    {
+        return $kb >= 1024
+            ? rtrim(rtrim(number_format($kb / 1024, 1, '.', ''), '0'), '.') . ' MB'
+            : $kb . ' KB';
+    }
+
+    /**
      * Determina si el usuario autenticado puede ver/gestionar los documentos
      * de la póliza: administradores o el agente propietario.
      */
@@ -1020,16 +1068,33 @@ class PolizaController extends Controller
             abort(403, 'No tienes permiso para modificar los documentos de esta póliza.');
         }
 
+        $maxKb = $this->limiteSubidaKb();
+        $maxTexto = $this->limiteLegible($maxKb);
+
+        // El mensaje de la regla 'uploaded' es el que dispara PHP cuando el
+        // archivo excede upload_max_filesize; por defecto dice solo
+        // "failed to upload", que no explica nada.
+        $excedido = 'El PDF de :attribute no se pudo subir. El servidor acepta como máximo '
+                  . $maxTexto . ' por archivo.';
+
         $request->validate([
-            'archivo_poliza' => 'nullable|file|mimes:pdf|max:10240',
-            'archivo_recibo' => 'nullable|file|mimes:pdf|max:10240',
-        ], [], [
-            'archivo_poliza' => 'archivo de póliza',
-            'archivo_recibo' => 'archivo de recibo',
+            'archivo_poliza' => 'nullable|file|mimes:pdf|max:' . $maxKb,
+            'archivo_recibo' => 'nullable|file|mimes:pdf|max:' . $maxKb,
+        ], [
+            'archivo_poliza.uploaded' => $excedido,
+            'archivo_recibo.uploaded' => $excedido,
+            'archivo_poliza.max'      => 'El PDF de :attribute supera el máximo de ' . $maxTexto . '.',
+            'archivo_recibo.max'      => 'El PDF de :attribute supera el máximo de ' . $maxTexto . '.',
+            'archivo_poliza.mimes'    => 'El archivo de :attribute debe ser un PDF.',
+            'archivo_recibo.mimes'    => 'El archivo de :attribute debe ser un PDF.',
+        ], [
+            'archivo_poliza' => 'la póliza',
+            'archivo_recibo' => 'el recibo',
         ]);
 
         if (!$request->hasFile('archivo_poliza') && !$request->hasFile('archivo_recibo')) {
-            return back()->with('error', 'Selecciona al menos un archivo PDF para resubir.');
+            return back()->with('error', 'Selecciona al menos un archivo PDF para resubir. '
+                . 'Si elegiste uno, puede que supere el máximo de ' . $maxTexto . ' que acepta el servidor.');
         }
 
         try {
