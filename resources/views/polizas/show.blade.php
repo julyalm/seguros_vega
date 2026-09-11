@@ -418,14 +418,17 @@
                             'archivo'  => $poliza->file_path,
                             // URLs relativas a proposito: el navegador reusa el origen ya
                             // resuelto del documento en vez de re-parsear el host.
-                            'preview'  => route('polizas.preview', $poliza->id, false),
+                            // El ?v= cuelga del nombre del archivo guardado, que es
+                            // aleatorio en cada subida: al resubir cambia la URL y el
+                            // navegador no puede servir el PDF anterior desde cache.
+                            'preview'  => route('polizas.preview', $poliza->id, false) . '?v=' . substr(md5((string) $poliza->file_path), 0, 8),
                             'descarga' => route('polizas.download', $poliza->id, false),
                             'acento'   => 'var(--sv-navy)',
                         ],
                         [
                             'titulo'   => 'Recibo',
                             'archivo'  => $poliza->recibo_path,
-                            'preview'  => route('polizas.preview.recibo', $poliza->id, false),
+                            'preview'  => route('polizas.preview.recibo', $poliza->id, false) . '?v=' . substr(md5((string) $poliza->recibo_path), 0, 8),
                             'descarga' => route('polizas.download.recibo', $poliza->id, false),
                             'acento'   => 'var(--sv-gold)',
                         ],

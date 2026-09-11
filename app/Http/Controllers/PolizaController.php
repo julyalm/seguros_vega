@@ -1053,10 +1053,21 @@ class PolizaController extends Controller
             abort(404, 'El archivo no se encontró en el servidor.');
         }
 
-        return response()->file(Storage::disk('public')->path($path), [
+        $respuesta = response()->file(Storage::disk('public')->path($path), [
             'Content-Type'        => 'application/pdf',
             'Content-Disposition' => 'inline; filename="' . $filename . '"',
         ]);
+
+        // BinaryFileResponse marca la respuesta como 'public' por defecto. Estos
+        // PDFs son documentos privados detras de autenticacion, y ademas la URL
+        // de la ruta no cambia al resubir el archivo: si el navegador cachea, el
+        // usuario sigue viendo el PDF anterior. Symfony recalcula Cache-Control,
+        // asi que se usa su API en lugar de escribir la cabecera a mano.
+        $respuesta->setPrivate();
+        $respuesta->headers->addCacheControlDirective('no-store');
+        $respuesta->headers->addCacheControlDirective('max-age', '0');
+
+        return $respuesta;
     }
 
     /**
