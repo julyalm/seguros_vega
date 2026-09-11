@@ -989,6 +989,11 @@ class PolizaController extends Controller
 
     /**
      * Envía un PDF del disco público con Content-Disposition inline.
+     *
+     * Se usa response()->file() y no response() con el contenido en memoria
+     * porque devuelve un BinaryFileResponse: soporta peticiones Range y anuncia
+     * Accept-Ranges y Content-Length. El visor de PDF de Chrome pide el archivo
+     * por rangos de bytes, y falla si el servidor ignora la cabecera Range.
      */
     private function streamInline(?string $path, string $filename)
     {
@@ -1000,7 +1005,7 @@ class PolizaController extends Controller
             abort(404, 'El archivo no se encontró en el servidor.');
         }
 
-        return response(Storage::disk('public')->get($path), 200, [
+        return response()->file(Storage::disk('public')->path($path), [
             'Content-Type'        => 'application/pdf',
             'Content-Disposition' => 'inline; filename="' . $filename . '"',
         ]);

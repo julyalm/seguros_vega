@@ -416,15 +416,17 @@
                         [
                             'titulo'   => 'Póliza',
                             'archivo'  => $poliza->file_path,
-                            'preview'  => route('polizas.preview', $poliza->id),
-                            'descarga' => route('polizas.download', $poliza->id),
+                            // URLs relativas a proposito: el navegador reusa el origen ya
+                            // resuelto del documento en vez de re-parsear el host.
+                            'preview'  => route('polizas.preview', $poliza->id, false),
+                            'descarga' => route('polizas.download', $poliza->id, false),
                             'acento'   => 'var(--sv-navy)',
                         ],
                         [
                             'titulo'   => 'Recibo',
                             'archivo'  => $poliza->recibo_path,
-                            'preview'  => route('polizas.preview.recibo', $poliza->id),
-                            'descarga' => route('polizas.download.recibo', $poliza->id),
+                            'preview'  => route('polizas.preview.recibo', $poliza->id, false),
+                            'descarga' => route('polizas.download.recibo', $poliza->id, false),
                             'acento'   => 'var(--sv-gold)',
                         ],
                     ];
