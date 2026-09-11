@@ -35,6 +35,18 @@
 </div>
 @endif
 
+@if($errors->any())
+<div class="sv-alert sv-alert--error" x-data="{ show: true }" x-show="show">
+    <div class="sv-alert__content">
+        <svg width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+        <span>{{ $errors->first() }}</span>
+    </div>
+    <button @click="show = false" class="sv-alert__close">
+        <svg width="18" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
+    </button>
+</div>
+@endif
+
 <div x-data="{ 
     editAdminModalOpen: false, 
     editReceiptModalOpen: false, 
@@ -479,7 +491,19 @@
                 </button>
             </div>
             <div class="sv-modal__body">
-                <form action="{{ route('polizas.update', $poliza->id) }}" method="POST" class="sv-form-stack">
+                <form action="{{ route('polizas.update', $poliza->id) }}" method="POST" class="sv-form-stack"
+                    x-data="{
+                        prima_neta: {{ $poliza->prima_neta }},
+                        derechos: {{ $poliza->derechos }},
+                        recargo: {{ $poliza->recargo }},
+                        iva: {{ $poliza->iva }},
+                        get prima_total() {
+                            return (parseFloat(this.prima_neta || 0) +
+                                    parseFloat(this.derechos || 0) +
+                                    parseFloat(this.recargo || 0) +
+                                    parseFloat(this.iva || 0)).toFixed(2);
+                        }
+                    }">
                     @csrf
                     @method('PUT')
                     <div class="sv-form-group">
@@ -489,27 +513,34 @@
                     <div class="sv-form-row">
                         <div class="sv-form-group">
                             <label class="sv-form-label">Prima Neta</label>
-                            <input type="number" step="0.01" name="prima_neta" value="{{ $poliza->prima_neta }}" class="sv-input" required>
+                            <input type="number" step="0.01" name="prima_neta" x-model="prima_neta" class="sv-input" required>
                         </div>
                         <div class="sv-form-group">
                             <label class="sv-form-label">Derechos</label>
-                            <input type="number" step="0.01" name="derechos" value="{{ $poliza->derechos }}" class="sv-input" required>
+                            <input type="number" step="0.01" name="derechos" x-model="derechos" class="sv-input" required>
                         </div>
                     </div>
                     <div class="sv-form-row">
                         <div class="sv-form-group">
                             <label class="sv-form-label">Recargos</label>
-                            <input type="number" step="0.01" name="recargo" value="{{ $poliza->recargo }}" class="sv-input" required>
+                            <input type="number" step="0.01" name="recargo" x-model="recargo" class="sv-input" required>
                         </div>
                         <div class="sv-form-group">
                             <label class="sv-form-label">I.V.A.</label>
-                            <input type="number" step="0.01" name="iva" value="{{ $poliza->iva }}" class="sv-input" required>
+                            <input type="number" step="0.01" name="iva" x-model="iva" class="sv-input" required>
                         </div>
                     </div>
                     <div class="sv-form-group">
                         <label class="sv-form-label">Comisión de Agente</label>
                         <input type="number" step="0.01" name="comision" value="{{ $poliza->comision }}" class="sv-input" required>
                     </div>
+
+                    <div class="sv-total-preview">
+                        <span class="sv-total-preview__label">Prima Total</span>
+                        <span class="sv-total-preview__value sv-mono" x-text="'$' + prima_total"></span>
+                    </div>
+                    <p class="sv-form-hint">Se calcula automáticamente como Prima Neta + Derechos + Recargos + I.V.A. La comisión no se incluye en el total.</p>
+
                     <div class="sv-modal__footer">
                         <button type="button" @click="editAdminModalOpen = false" class="sv-btn sv-btn--outline">Cancelar</button>
                         <button type="submit" class="sv-btn sv-btn--primary">Guardar Cambios</button>
@@ -1588,6 +1619,30 @@
     color: var(--sv-gray-400);
     font-weight: 600;
     margin-top: 2px;
+}
+
+/* ── PRIMA TOTAL CALCULADA (modal financiero) ────────────── */
+.sv-total-preview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 20px;
+    border-radius: 12px;
+    background: var(--sv-gray-50);
+    border: 1.5px solid #e2e8f0;
+}
+.sv-total-preview__label {
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--sv-gray-500);
+}
+.sv-total-preview__value {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--sv-navy);
 }
 
 /* ── DOCUMENTOS (vista previa + resubida) ────────────────── */

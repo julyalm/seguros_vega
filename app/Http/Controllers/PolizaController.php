@@ -163,8 +163,15 @@ class PolizaController extends Controller
                 'recargo' => 'required|numeric|min:0',
                 'iva' => 'required|numeric|min:0',
                 'comision' => 'required|numeric|min:0',
-                'prima_total' => 'required|numeric|min:0',
             ]);
+
+            // La prima total siempre se deriva del desglose para que no pueda
+            // desincronizarse con los conceptos capturados.
+            $validated['prima_total'] = round(
+                $validated['prima_neta'] + $validated['derechos'] + $validated['recargo'] + $validated['iva'],
+                2
+            );
+
             $poliza->update($validated);
             $msg = 'Resumen financiero actualizado correctamente.';
         }
