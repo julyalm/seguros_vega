@@ -5,6 +5,11 @@
 
 @section('content')
 
+@php
+    // Admin o el agente propietario pueden ver y resubir los documentos de la poliza.
+    $canManageDocs = auth()->user()->role === 'admin' || $poliza->user_id === auth()->id();
+@endphp
+
 <!-- Success/Error Messages -->
 @if(session('success'))
 <div class="sv-alert sv-alert--success" x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 5000)">
@@ -37,6 +42,10 @@
     editVehiclesModalOpen: false, 
     editPaymentsModalOpen: false, 
     editValidityModalOpen: false,
+    docsModalOpen: {{ $errors->hasAny(['archivo_poliza', 'archivo_recibo']) ? 'true' : 'false' }},
+    previewModalOpen: false,
+    previewUrl: '',
+    previewTitle: '',
     receiptUrl: '',
     receiptStatus: 'pendiente',
     receiptContracargo: 0,
@@ -45,6 +54,11 @@
         this.receiptStatus = status;
         this.receiptContracargo = contracargo;
         this.editReceiptModalOpen = true;
+    },
+    openPreview(url, title) {
+        this.previewUrl = url;
+        this.previewTitle = title;
+        this.previewModalOpen = true;
     }
 }">
 
@@ -354,6 +368,87 @@
                     <div class="sv-total-box__label">PRIMA TOTAL</div>
                     <div class="sv-total-box__value">${{ number_format($poliza->prima_total, 2) }}</div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Card de Documentos -->
+        <div class="sv-detail-card">
+            <div class="sv-detail-card__header">
+                <h3 class="sv-detail-card__title">
+                    <svg width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                    Documentos
+                </h3>
+                @if($canManageDocs)
+                <button type="button" @click="docsModalOpen = true" class="sv-btn sv-btn--sm sv-btn--gold">
+                    <svg width="12" viewBox="0 0 24 24" fill="currentColor"><path d="M11.47 1.72a.75.75 0 0 1 1.06 0l3 3a.75.75 0 0 1-1.06 1.06l-1.72-1.72V15a.75.75 0 0 1-1.5 0V4.06L9.53 5.78a.75.75 0 0 1-1.06-1.06l3-3ZM3 16.5a.75.75 0 0 1 .75.75v2.25a.75.75 0 0 0 .75.75h15a.75.75 0 0 0 .75-.75V17.25a.75.75 0 0 1 1.5 0v2.25a2.25 2.25 0 0 1-2.25 2.25h-15A2.25 2.25 0 0 1 2.25 19.5v-2.25A.75.75 0 0 1 3 16.5Z"/></svg>
+                    Resubir
+                </button>
+                @endif
+            </div>
+            <div class="sv-detail-card__body sv-doc-list">
+
+                @php
+                    $documentos = [
+                        [
+                            'titulo'   => 'Póliza',
+                            'archivo'  => $poliza->file_path,
+                            'preview'  => route('polizas.preview', $poliza->id),
+                            'descarga' => route('polizas.download', $poliza->id),
+                            'acento'   => 'var(--sv-navy)',
+                        ],
+                        [
+                            'titulo'   => 'Recibo',
+                            'archivo'  => $poliza->recibo_path,
+                            'preview'  => route('polizas.preview.recibo', $poliza->id),
+                            'descarga' => route('polizas.download.recibo', $poliza->id),
+                            'acento'   => 'var(--sv-gold)',
+                        ],
+                    ];
+                @endphp
+
+                @foreach($documentos as $doc)
+                <div class="sv-doc">
+                    <div class="sv-doc__head">
+                        <span class="sv-doc__title" style="color: {{ $doc['acento'] }};">{{ $doc['titulo'] }} PDF</span>
+                        @if($doc['archivo'])
+                        <span class="sv-badge sv-badge--active">Cargado</span>
+                        @else
+                        <span class="sv-badge sv-badge--pending">Sin archivo</span>
+                        @endif
+                    </div>
+
+                    @if($doc['archivo'] && $canManageDocs)
+                    <div class="sv-doc__preview">
+                        <iframe src="{{ $doc['preview'] }}#toolbar=0&navpanes=0&view=FitH" title="Vista previa {{ $doc['titulo'] }}" loading="lazy"></iframe>
+                        <button type="button" class="sv-doc__preview-overlay" @click="openPreview('{{ $doc['preview'] }}', '{{ $doc['titulo'] }} PDF')">
+                            <span>Ampliar vista previa</span>
+                        </button>
+                    </div>
+                    <div class="sv-doc__actions">
+                        <button type="button" @click="openPreview('{{ $doc['preview'] }}', '{{ $doc['titulo'] }} PDF')" class="sv-btn sv-btn--outline sv-btn--sm sv-btn--icon">
+                            <svg width="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            <span>Vista previa</span>
+                        </button>
+                        <a href="{{ $doc['descarga'] }}" target="_blank" class="sv-btn sv-btn--outline sv-btn--sm sv-btn--icon">
+                            <svg width="16" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 2.25a.75.75 0 0 1 .75.75v11.69l3.22-3.22a.75.75 0 1 1 1.06 1.06l-4.5 4.5a.75.75 0 0 1-1.06 0l-4.5-4.5a.75.75 0 1 1 1.06-1.06l3.22 3.22V3a.75.75 0 0 1 .75-.75Zm-9 13.5a.75.75 0 0 1 .75.75v2.25a1.5 1.5 0 0 0 1.5 1.5h13.5a1.5 1.5 0 0 0 1.5-1.5V16.5a.75.75 0 0 1 1.5 0v2.25a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3V16.5a.75.75 0 0 1 .75-.75Z" clip-rule="evenodd" /></svg>
+                            <span>Descargar</span>
+                        </a>
+                    </div>
+                    @else
+                    <div class="sv-doc__empty">
+                        <svg width="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                        <span>
+                            @if(!$doc['archivo'])
+                                Aún no se ha cargado el {{ mb_strtolower($doc['titulo']) }}.
+                            @else
+                                No tienes permiso para consultar este documento.
+                            @endif
+                        </span>
+                    </div>
+                    @endif
+                </div>
+                @endforeach
+
             </div>
         </div>
 
@@ -685,6 +780,128 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal: Vista Previa de Documento -->
+    <div x-show="previewModalOpen" x-cloak class="sv-modal-backdrop">
+        <div class="sv-modal --width-lg sv-modal--preview" @click.outside="previewModalOpen = false" @keydown.escape.window="previewModalOpen = false">
+            <div class="sv-modal__header">
+                <h3 class="sv-modal__title" x-text="previewTitle"></h3>
+                <div class="sv-modal__header-actions">
+                    <a :href="previewUrl" target="_blank" class="sv-btn sv-btn--outline sv-btn--sm sv-btn--icon">
+                        <svg width="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+                        <span>Abrir en pestaña</span>
+                    </a>
+                    <button type="button" @click="previewModalOpen = false" class="sv-modal__close">
+                        <svg width="20" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="sv-modal__body sv-doc-viewer">
+                <template x-if="previewModalOpen">
+                    <iframe :src="previewUrl" :title="previewTitle"></iframe>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    @if($canManageDocs)
+    <!-- Modal: Resubir Documentos -->
+    <div x-show="docsModalOpen" x-cloak class="sv-modal-backdrop">
+        <div class="sv-modal --width-md" @click.outside="docsModalOpen = false" @keydown.escape.window="docsModalOpen = false">
+            <div class="sv-modal__header">
+                <h3 class="sv-modal__title">Resubir Documentos</h3>
+                <button type="button" @click="docsModalOpen = false" class="sv-modal__close">
+                    <svg width="20" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
+                </button>
+            </div>
+            <div class="sv-modal__body --scrollable">
+                <form action="{{ route('polizas.update.documentos', $poliza->id) }}" method="POST" enctype="multipart/form-data" class="sv-form-stack"
+                    x-data="{
+                        archivos: { poliza: '', recibo: '' },
+                        arrastrando: { poliza: false, recibo: false },
+                        etiqueta(f) {
+                            const peso = f.size < 1024 * 1024
+                                ? (f.size / 1024).toFixed(1) + ' KB'
+                                : (f.size / (1024 * 1024)).toFixed(1) + ' MB';
+                            return f.name + ' - ' + peso;
+                        },
+                        seleccionar(campo, f) {
+                            if (!f) return;
+                            this.archivos[campo] = this.etiqueta(f);
+                        },
+                        soltar(campo, ref, f) {
+                            if (!f) return;
+                            const dt = new DataTransfer();
+                            dt.items.add(f);
+                            this.$refs[ref].files = dt.files;
+                            this.seleccionar(campo, f);
+                        },
+                        limpiar(campo, ref) {
+                            this.archivos[campo] = '';
+                            this.$refs[ref].value = '';
+                        }
+                    }">
+                    @csrf
+
+                    <p class="sv-form-hint">
+                        Sube solo los documentos que quieras reemplazar. Formato PDF, máximo 10 MB por archivo.
+                        El archivo anterior se elimina del servidor al guardar.
+                    </p>
+
+                    <!-- Póliza -->
+                    <div class="sv-form-group">
+                        <label class="sv-form-label">Póliza (PDF) @if($poliza->file_path)<span class="sv-form-label__note">— reemplaza el archivo actual</span>@endif</label>
+                        <input type="file" name="archivo_poliza" accept="application/pdf" style="display:none;"
+                            x-ref="inputPoliza" @change="seleccionar('poliza', $event.target.files[0])">
+
+                        <div x-show="!archivos.poliza" class="sv-dropzone" :class="arrastrando.poliza && '--active'"
+                            @dragover.prevent="arrastrando.poliza = true"
+                            @dragleave.prevent="arrastrando.poliza = false"
+                            @drop.prevent="arrastrando.poliza = false; soltar('poliza', 'inputPoliza', $event.dataTransfer.files[0])"
+                            @click="$refs.inputPoliza.click()">
+                            <svg width="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
+                            <span><strong>Selecciona un archivo</strong> o arrástralo aquí</span>
+                        </div>
+
+                        <div x-show="archivos.poliza" x-cloak class="sv-dropzone__file">
+                            <span class="sv-dropzone__name" x-text="archivos.poliza"></span>
+                            <button type="button" @click="limpiar('poliza', 'inputPoliza')" class="sv-dropzone__remove">Quitar</button>
+                        </div>
+                    </div>
+
+                    <!-- Recibo -->
+                    <div class="sv-form-group">
+                        <label class="sv-form-label">Recibo (PDF) @if($poliza->recibo_path)<span class="sv-form-label__note">— reemplaza el archivo actual</span>@endif</label>
+                        <input type="file" name="archivo_recibo" accept="application/pdf" style="display:none;"
+                            x-ref="inputRecibo" @change="seleccionar('recibo', $event.target.files[0])">
+
+                        <div x-show="!archivos.recibo" class="sv-dropzone" :class="arrastrando.recibo && '--active'"
+                            @dragover.prevent="arrastrando.recibo = true"
+                            @dragleave.prevent="arrastrando.recibo = false"
+                            @drop.prevent="arrastrando.recibo = false; soltar('recibo', 'inputRecibo', $event.dataTransfer.files[0])"
+                            @click="$refs.inputRecibo.click()">
+                            <svg width="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
+                            <span><strong>Selecciona un archivo</strong> o arrástralo aquí</span>
+                        </div>
+
+                        <div x-show="archivos.recibo" x-cloak class="sv-dropzone__file">
+                            <span class="sv-dropzone__name" x-text="archivos.recibo"></span>
+                            <button type="button" @click="limpiar('recibo', 'inputRecibo')" class="sv-dropzone__remove">Quitar</button>
+                        </div>
+                    </div>
+
+                    @error('archivo_poliza')<span class="sv-form-error">{{ $message }}</span>@enderror
+                    @error('archivo_recibo')<span class="sv-form-error">{{ $message }}</span>@enderror
+
+                    <div class="sv-modal__footer">
+                        <button type="button" @click="docsModalOpen = false" class="sv-btn sv-btn--outline">Cancelar</button>
+                        <button type="submit" class="sv-btn sv-btn--primary" :disabled="!archivos.poliza && !archivos.recibo">Guardar Documentos</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endif
     </div>
 
 <style>
@@ -1371,6 +1588,186 @@
     color: var(--sv-gray-400);
     font-weight: 600;
     margin-top: 2px;
+}
+
+/* ── DOCUMENTOS (vista previa + resubida) ────────────────── */
+.sv-doc-list {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+.sv-doc {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.sv-doc + .sv-doc {
+    padding-top: 24px;
+    border-top: 1px solid #f1f5f9;
+}
+.sv-doc__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.sv-doc__title {
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.sv-doc__preview {
+    position: relative;
+    height: 200px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: var(--sv-gray-50);
+    overflow: hidden;
+}
+.sv-doc__preview iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+}
+.sv-doc__preview-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 12px;
+    background: linear-gradient(to top, rgba(15,23,42,0.55), rgba(15,23,42,0) 45%);
+    border: none;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.sv-doc__preview:hover .sv-doc__preview-overlay { opacity: 1; }
+.sv-doc__preview-overlay span {
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    background: rgba(15,23,42,0.75);
+    padding: 6px 14px;
+    border-radius: 999px;
+}
+.sv-doc__actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.sv-doc__actions > * { flex: 1; justify-content: center; }
+.sv-doc__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 28px 16px;
+    border: 1.5px dashed #e2e8f0;
+    border-radius: 12px;
+    background: var(--sv-gray-50);
+    color: var(--sv-gray-400);
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+}
+
+/* Modal de vista previa */
+.sv-modal__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.sv-modal--preview { height: 88vh; }
+.sv-doc-viewer {
+    padding: 0;
+    flex: 1;
+    min-height: 0;
+    background: var(--sv-gray-50);
+}
+.sv-doc-viewer iframe {
+    width: 100%;
+    height: 100%;
+    min-height: 70vh;
+    border: 0;
+    display: block;
+}
+
+/* Zonas de carga */
+.sv-form-hint {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--sv-gray-500);
+    line-height: 1.6;
+    margin: 0;
+}
+.sv-form-label__note {
+    font-weight: 600;
+    color: var(--sv-gray-400);
+    text-transform: none;
+}
+.sv-form-error {
+    font-size: 12px;
+    font-weight: 700;
+    color: #b91c1c;
+}
+.sv-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 28px 20px;
+    border: 2px dashed var(--sv-gray-300, #cbd5e1);
+    border-radius: 12px;
+    background: var(--sv-gray-50);
+    color: var(--sv-gray-400);
+    font-size: 13px;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.2s, background 0.2s, color 0.2s;
+}
+.sv-dropzone strong { color: var(--sv-navy); }
+.sv-dropzone.--active,
+.sv-dropzone:hover {
+    border-color: var(--sv-gold);
+    background: #fffbf2;
+    color: var(--sv-gray-600);
+}
+.sv-dropzone__file {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1.5px solid var(--sv-gold);
+    border-radius: 12px;
+    background: #fffbf2;
+}
+.sv-dropzone__name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--sv-navy);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.sv-dropzone__remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    color: #b91c1c;
+    flex-shrink: 0;
+}
+.sv-dropzone__remove:hover { text-decoration: underline; }
+.sv-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 </style>
 

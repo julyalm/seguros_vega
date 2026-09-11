@@ -19,6 +19,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/polizas/{poliza}/download', [\App\Http\Controllers\PolizaController::class, 'downloadFile'])->name('polizas.download');
     Route::get('/polizas/{poliza}/download-recibo', [\App\Http\Controllers\PolizaController::class, 'downloadRecibo'])->name('polizas.download.recibo');
 
+    // Vista previa en linea y resubida de documentos (admin o agente propietario)
+    Route::get('/polizas/{poliza}/preview', [\App\Http\Controllers\PolizaController::class, 'previewFile'])->name('polizas.preview');
+    Route::get('/polizas/{poliza}/preview-recibo', [\App\Http\Controllers\PolizaController::class, 'previewRecibo'])->name('polizas.preview.recibo');
+    Route::post('/polizas/{poliza}/documentos', [\App\Http\Controllers\PolizaController::class, 'updateDocumentos'])->name('polizas.update.documentos');
+
     // Section-specific update routes (admin only)
     Route::middleware(['role:admin'])->group(function () {
         Route::put('/polizas/{poliza}/insured', [\App\Http\Controllers\PolizaController::class, 'updateInsured'])->name('polizas.update.insured');

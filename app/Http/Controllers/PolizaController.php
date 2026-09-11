@@ -740,6 +740,110 @@ class PolizaController extends Controller
     }
 
     /**
+     * Determina si el usuario autenticado puede ver/gestionar los documentos
+     * de la póliza: administradores o el agente propietario.
+     */
+    private function puedeGestionarDocumentos(Poliza $poliza): bool
+    {
+        $user = auth()->user();
+
+        return $user->role === 'admin' || $poliza->user_id === $user->id;
+    }
+
+    /**
+     * Vista previa en línea del PDF de la póliza (se abre dentro del navegador).
+     */
+    public function previewFile(Poliza $poliza)
+    {
+        if (!$this->puedeGestionarDocumentos($poliza)) {
+            abort(403);
+        }
+
+        return $this->streamInline($poliza->file_path, 'poliza-' . $poliza->numero_poliza . '.pdf');
+    }
+
+    /**
+     * Vista previa en línea del PDF del recibo.
+     */
+    public function previewRecibo(Poliza $poliza)
+    {
+        if (!$this->puedeGestionarDocumentos($poliza)) {
+            abort(403);
+        }
+
+        return $this->streamInline($poliza->recibo_path, 'recibo-' . $poliza->numero_poliza . '.pdf');
+    }
+
+    /**
+     * Envía un PDF del disco público con Content-Disposition inline.
+     */
+    private function streamInline(?string $path, string $filename)
+    {
+        if (!$path) {
+            abort(404, 'No hay archivo disponible.');
+        }
+
+        if (!Storage::disk('public')->exists($path)) {
+            abort(404, 'El archivo no se encontró en el servidor.');
+        }
+
+        return response(Storage::disk('public')->get($path), 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
+    }
+
+    /**
+     * Resubir el PDF de la póliza y/o del recibo (Admin o agente propietario).
+     */
+    public function updateDocumentos(Request $request, Poliza $poliza)
+    {
+        if (!$this->puedeGestionarDocumentos($poliza)) {
+            abort(403, 'No tienes permiso para modificar los documentos de esta póliza.');
+        }
+
+        $request->validate([
+            'archivo_poliza' => 'nullable|file|mimes:pdf|max:10240',
+            'archivo_recibo' => 'nullable|file|mimes:pdf|max:10240',
+        ], [], [
+            'archivo_poliza' => 'archivo de póliza',
+            'archivo_recibo' => 'archivo de recibo',
+        ]);
+
+        if (!$request->hasFile('archivo_poliza') && !$request->hasFile('archivo_recibo')) {
+            return back()->with('error', 'Selecciona al menos un archivo PDF para resubir.');
+        }
+
+        try {
+            $cambios = [];
+
+            if ($request->hasFile('archivo_poliza')) {
+                $anterior = $poliza->file_path;
+                $cambios['file_path'] = $request->file('archivo_poliza')->store('polizas', 'public');
+
+                if ($anterior && Storage::disk('public')->exists($anterior)) {
+                    Storage::disk('public')->delete($anterior);
+                }
+            }
+
+            if ($request->hasFile('archivo_recibo')) {
+                $anterior = $poliza->recibo_path;
+                $cambios['recibo_path'] = $request->file('archivo_recibo')->store('recibos', 'public');
+
+                if ($anterior && Storage::disk('public')->exists($anterior)) {
+                    Storage::disk('public')->delete($anterior);
+                }
+            }
+
+            $poliza->update($cambios);
+
+            return back()->with('success', 'Documentos actualizados correctamente.');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Error al actualizar los documentos: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Reassign a policy to a different agent (Admin only).
      */
     public function reassignAgent(Request $request, Poliza $poliza)
