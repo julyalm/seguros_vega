@@ -137,6 +137,7 @@ class PolizaController extends Controller
         }
 
         $section = $request->input('section');
+        $warning = null;
 
         if ($section === 'asegurado') {
             $validated = $request->validate([
@@ -172,11 +173,46 @@ class PolizaController extends Controller
                 2
             );
 
-            $poliza->update($validated);
-            $msg = 'Resumen financiero actualizado correctamente.';
+            // El plan se recalcula en el servidor: nunca se confía en la vista
+            // previa que vio el navegador.
+            $plan = $this->calcularSincronizacionRecibos($poliza, $validated);
+            $quiereAuto = $request->input('sincronizar_recibos') === 'auto';
+
+            try {
+                DB::beginTransaction();
+
+                $poliza->update($validated);
+                $msg = 'Resumen financiero actualizado correctamente.';
+
+                if ($plan['requiere_sincronizacion']) {
+                    if ($quiereAuto && $plan['auto_disponible']) {
+                        foreach ($plan['valores'] as $reciboId => $fila) {
+                            Recibo::where('id', $reciboId)
+                                ->where('poliza_id', $poliza->id)
+                                ->update($fila);
+                        }
+
+                        $msg = 'Resumen financiero actualizado y ' . count($plan['valores'])
+                             . ' recibo(s) sincronizados con la nueva prima total.';
+                    } else {
+                        $warning = 'La suma de los recibos no coincide con la nueva prima total (diferencia de $'
+                                 . number_format($plan['diferencia'], 2)
+                                 . '). Ajústalos desde el Calendario de Pagos.';
+
+                        if ($quiereAuto && !$plan['auto_disponible']) {
+                            $warning = 'No se pudo sincronizar automáticamente: ' . $plan['motivo_bloqueo'] . ' ' . $warning;
+                        }
+                    }
+                }
+
+                DB::commit();
+            } catch (\Exception $e) {
+                DB::rollBack();
+                return back()->with('error', 'Error al actualizar el resumen financiero: ' . $e->getMessage());
+            }
         }
 
-        return back()->with('success', $msg);
+        return back()->with('success', $msg)->with('warning', $warning);
     }
 
     /**
@@ -430,6 +466,176 @@ class PolizaController extends Controller
                 'message' => 'Error al guardar la póliza: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Calcula cómo quedarían los recibos de la póliza si se sincronizan con un
+     * nuevo desglose financiero.
+     *
+     * Regla: los recibos pagados no se tocan, porque registran dinero que ya
+     * entró. La diferencia se reparte solo entre los pendientes/vencidos y el
+     * último de ellos absorbe el redondeo, de modo que la suma cuadre exacto
+     * con la prima total — la misma salvaguarda que aplica generarRecibos()
+     * en el alta.
+     *
+     * No persiste nada: devuelve el plan para previsualizarlo o aplicarlo.
+     */
+    private function calcularSincronizacionRecibos(Poliza $poliza, array $d): array
+    {
+        $recibos = $poliza->recibos()->orderBy('indice_recibo')->get();
+
+        $primaTotal = round((float) $d['prima_total'], 2);
+        $sumaActual = round((float) $recibos->sum('monto'), 2);
+
+        $plan = [
+            'requiere_sincronizacion' => abs($sumaActual - $primaTotal) >= 0.01,
+            'prima_total'     => $primaTotal,
+            'suma_actual'     => $sumaActual,
+            'diferencia'      => round($primaTotal - $sumaActual, 2),
+            'auto_disponible' => false,
+            'motivo_bloqueo'  => null,
+            'recibos'         => [],
+            'valores'         => [],
+        ];
+
+        if ($recibos->isEmpty()) {
+            $plan['motivo_bloqueo'] = 'Esta póliza no tiene recibos generados.';
+            return $plan;
+        }
+
+        $pagados    = $recibos->where('status', 'pagado');
+        $ajustables = $recibos->where('status', '!=', 'pagado')->values();
+
+        if ($ajustables->isEmpty()) {
+            $plan['motivo_bloqueo'] = 'Todos los recibos están pagados: no hay dónde repartir la diferencia.';
+            $plan['recibos'] = $this->detalleSincronizacion($recibos, []);
+            return $plan;
+        }
+
+        // Lo ya cobrado se descuenta del importe a repartir.
+        $restante = [
+            'prima_neta' => round((float) $d['prima_neta'] - (float) $pagados->sum('prima_neta'), 2),
+            'derechos'   => round((float) $d['derechos']   - (float) $pagados->sum('derechos'), 2),
+            'recargo'    => round((float) $d['recargo']    - (float) $pagados->sum('recargo'), 2),
+            'iva'        => round((float) $d['iva']        - (float) $pagados->sum('iva'), 2),
+        ];
+
+        $etiquetas = [
+            'prima_neta' => 'prima neta',
+            'derechos'   => 'derechos',
+            'recargo'    => 'recargos',
+            'iva'        => 'I.V.A.',
+        ];
+
+        foreach ($restante as $concepto => $valor) {
+            if ($valor < 0) {
+                $plan['motivo_bloqueo'] = 'Los recibos ya pagados superan el nuevo importe de ' . $etiquetas[$concepto] . '.';
+                $plan['recibos'] = $this->detalleSincronizacion($recibos, []);
+                return $plan;
+            }
+        }
+
+        $n = $ajustables->count();
+        $nuevos = [];
+        $acumulado = ['prima_neta' => 0.0, 'recargo' => 0.0, 'iva' => 0.0];
+
+        foreach ($ajustables as $i => $recibo) {
+            $esUltimo = ($i === $n - 1);
+            $fila = [];
+
+            foreach (['prima_neta', 'recargo', 'iva'] as $concepto) {
+                if ($esUltimo) {
+                    $fila[$concepto] = round($restante[$concepto] - $acumulado[$concepto], 2);
+                } else {
+                    $fila[$concepto] = round($restante[$concepto] / $n, 2);
+                    $acumulado[$concepto] += $fila[$concepto];
+                }
+            }
+
+            // Los derechos van completos en el primer recibo ajustable, igual
+            // que generarRecibos() los carga al primer recibo del alta.
+            $fila['derechos'] = ($i === 0) ? $restante['derechos'] : 0.0;
+            $fila['monto'] = round($fila['prima_neta'] + $fila['derechos'] + $fila['recargo'] + $fila['iva'], 2);
+
+            $nuevos[$recibo->id] = $fila;
+        }
+
+        // El último ajustable absorbe cualquier descuadre (incluido el de los
+        // pagados cuyo monto no coincida con su propio desglose).
+        $ultimoId = $ajustables->last()->id;
+        $sumaResto = (float) $pagados->sum('monto');
+        foreach ($nuevos as $id => $fila) {
+            if ($id !== $ultimoId) {
+                $sumaResto += $fila['monto'];
+            }
+        }
+        $nuevos[$ultimoId]['monto'] = round($primaTotal - $sumaResto, 2);
+
+        // Ningún recibo puede quedar en negativo.
+        foreach ($nuevos as $fila) {
+            foreach ($fila as $valor) {
+                if ($valor < 0) {
+                    $plan['motivo_bloqueo'] = 'El reparto dejaría uno o más recibos en negativo. Ajusta el calendario a mano.';
+                    $plan['recibos'] = $this->detalleSincronizacion($recibos, []);
+                    return $plan;
+                }
+            }
+        }
+
+        $plan['auto_disponible'] = true;
+        $plan['valores'] = $nuevos;
+        $plan['recibos'] = $this->detalleSincronizacion($recibos, $nuevos);
+
+        return $plan;
+    }
+
+    /**
+     * Arma el detalle por recibo que alimenta la vista previa del reparto.
+     */
+    private function detalleSincronizacion($recibos, array $nuevos): array
+    {
+        return $recibos->map(function ($r) use ($nuevos) {
+            $nuevo = $nuevos[$r->id] ?? null;
+            $actual = round((float) $r->monto, 2);
+
+            return [
+                'id'           => $r->id,
+                'indice'       => $r->indice_recibo,
+                'status'       => $r->status_display,
+                'pagado'       => $r->status === 'pagado',
+                'monto_actual' => $actual,
+                'monto_nuevo'  => $nuevo ? $nuevo['monto'] : $actual,
+                'delta'        => $nuevo ? round($nuevo['monto'] - $actual, 2) : 0.0,
+            ];
+        })->values()->all();
+    }
+
+    /**
+     * Vista previa (JSON) del reparto que haría la sincronización automática.
+     * Solo calcula: no persiste nada.
+     */
+    public function previewSincronizacionRecibos(Request $request, Poliza $poliza)
+    {
+        if (auth()->user()->role !== 'admin') {
+            abort(403);
+        }
+
+        $datos = $request->validate([
+            'prima_neta' => 'required|numeric|min:0',
+            'derechos'   => 'required|numeric|min:0',
+            'recargo'    => 'required|numeric|min:0',
+            'iva'        => 'required|numeric|min:0',
+        ]);
+
+        $datos['prima_total'] = round(
+            $datos['prima_neta'] + $datos['derechos'] + $datos['recargo'] + $datos['iva'],
+            2
+        );
+
+        $plan = $this->calcularSincronizacionRecibos($poliza, $datos);
+        unset($plan['valores']);
+
+        return response()->json($plan);
     }
 
     /**

@@ -31,6 +31,7 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/polizas/{poliza}/payments', [\App\Http\Controllers\PolizaController::class, 'updatePayments'])->name('polizas.update.payments');
         Route::put('/polizas/{poliza}/validity', [\App\Http\Controllers\PolizaController::class, 'updateValidity'])->name('polizas.update.validity');
         Route::put('/polizas/{poliza}/reassign-agent', [\App\Http\Controllers\PolizaController::class, 'reassignAgent'])->name('polizas.reassign-agent');
+        Route::post('/polizas/{poliza}/recibos/preview-sync', [\App\Http\Controllers\PolizaController::class, 'previewSincronizacionRecibos'])->name('polizas.recibos.preview-sync');
     });
 
     Route::get('/recibos', [\App\Http\Controllers\ReciboController::class, 'index'])->name('recibos.index');

@@ -35,6 +35,18 @@
 </div>
 @endif
 
+@if(session('warning'))
+<div class="sv-alert sv-alert--warning" x-data="{ show: true }" x-show="show">
+    <div class="sv-alert__content">
+        <svg width="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+        <span>{{ session('warning') }}</span>
+    </div>
+    <button @click="show = false" class="sv-alert__close">
+        <svg width="18" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd"/></svg>
+    </button>
+</div>
+@endif
+
 @if($errors->any())
 <div class="sv-alert sv-alert--error" x-data="{ show: true }" x-show="show">
     <div class="sv-alert__content">
@@ -502,8 +514,50 @@
                                     parseFloat(this.derechos || 0) +
                                     parseFloat(this.recargo || 0) +
                                     parseFloat(this.iva || 0)).toFixed(2);
+                        },
+                        sync: null,
+                        sincronizarRecibos: 'auto',
+                        calculandoSync: false,
+                        timerSync: null,
+                        async pedirPreviewSync() {
+                            this.calculandoSync = true;
+                            try {
+                                const resp = await fetch('{{ route('polizas.recibos.preview-sync', $poliza->id) }}', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Accept': 'application/json',
+                                        'X-Requested-With': 'XMLHttpRequest',
+                                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                                    },
+                                    body: JSON.stringify({
+                                        prima_neta: parseFloat(this.prima_neta || 0),
+                                        derechos: parseFloat(this.derechos || 0),
+                                        recargo: parseFloat(this.recargo || 0),
+                                        iva: parseFloat(this.iva || 0)
+                                    })
+                                });
+                                if (!resp.ok) { this.sync = null; return; }
+                                this.sync = await resp.json();
+                                // Si el reparto automatico no es viable, solo queda la via manual.
+                                if (!this.sync.auto_disponible) this.sincronizarRecibos = 'manual';
+                            } catch (e) {
+                                this.sync = null;
+                            } finally {
+                                this.calculandoSync = false;
+                            }
+                        },
+                        pedirPreviewSyncDebounced() {
+                            clearTimeout(this.timerSync);
+                            this.timerSync = setTimeout(() => this.pedirPreviewSync(), 400);
                         }
-                    }">
+                    }"
+                    x-init="
+                        $watch('editAdminModalOpen', abierto => { if (abierto) pedirPreviewSync(); });
+                        ['prima_neta', 'derechos', 'recargo', 'iva'].forEach(
+                            campo => $watch(campo, () => pedirPreviewSyncDebounced())
+                        );
+                    ">
                     @csrf
                     @method('PUT')
                     <div class="sv-form-group">
@@ -540,6 +594,87 @@
                         <span class="sv-total-preview__value sv-mono" x-text="'$' + prima_total"></span>
                     </div>
                     <p class="sv-form-hint">Se calcula automáticamente como Prima Neta + Derechos + Recargos + I.V.A. La comisión no se incluye en el total.</p>
+
+                    @if(auth()->user()->role === 'admin')
+                    <!-- Sincronización de recibos -->
+                    <div x-show="calculandoSync" x-cloak class="sv-sync__loading">
+                        <span class="sv-sync__spinner"></span>
+                        Revisando el calendario de pagos…
+                    </div>
+
+                    <template x-if="!calculandoSync && sync && sync.requiere_sincronizacion">
+                        <div class="sv-sync">
+                            <div class="sv-sync__head">
+                                <svg width="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                                <div>
+                                    <strong>Los recibos dejarán de cuadrar con esta prima</strong>
+                                    <p>
+                                        Suma actual de recibos <b x-text="'$' + sync.suma_actual.toFixed(2)"></b>
+                                        contra la nueva prima total <b x-text="'$' + sync.prima_total.toFixed(2)"></b>
+                                        — diferencia de <b x-text="(sync.diferencia >= 0 ? '+$' : '-$') + Math.abs(sync.diferencia).toFixed(2)"></b>.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <label class="sv-sync__option" :class="sincronizarRecibos === 'auto' && sync.auto_disponible ? '--selected' : ''"
+                                :style="!sync.auto_disponible ? 'opacity:.5; cursor:not-allowed;' : ''">
+                                <input type="radio" name="sincronizar_recibos" value="auto" x-model="sincronizarRecibos" :disabled="!sync.auto_disponible">
+                                <span>
+                                    <strong>Sincronizar automáticamente</strong>
+                                    <small>Reparte la diferencia entre los recibos pendientes. Los recibos pagados no se modifican.</small>
+                                </span>
+                            </label>
+
+                            <p x-show="!sync.auto_disponible" x-cloak class="sv-sync__blocked" x-text="sync.motivo_bloqueo"></p>
+
+                            <label class="sv-sync__option" :class="sincronizarRecibos === 'manual' ? '--selected' : ''">
+                                <input type="radio" name="sincronizar_recibos" value="manual" x-model="sincronizarRecibos">
+                                <span>
+                                    <strong>Editarlos manualmente después</strong>
+                                    <small>Guarda solo la póliza; tú ajustas el Calendario de Pagos cuando quieras.</small>
+                                </span>
+                            </label>
+
+                            <div x-show="sincronizarRecibos === 'auto' && sync.auto_disponible" x-cloak class="sv-sync__preview">
+                                <div class="sv-sync__preview-title">Así quedaría el calendario</div>
+                                <table class="sv-sync__table">
+                                    <thead>
+                                        <tr>
+                                            <th>Recibo</th>
+                                            <th>Estatus</th>
+                                            <th class="--text-right">Actual</th>
+                                            <th class="--text-right">Nuevo</th>
+                                            <th class="--text-right">Cambio</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template x-for="r in sync.recibos" :key="r.id">
+                                            <tr :class="r.pagado ? '--locked' : ''">
+                                                <td x-text="'#' + r.indice"></td>
+                                                <td>
+                                                    <span class="sv-sync__status" x-text="r.pagado ? 'pagado' : r.status"></span>
+                                                </td>
+                                                <td class="--text-right sv-mono" x-text="'$' + r.monto_actual.toFixed(2)"></td>
+                                                <td class="--text-right sv-mono --bold" x-text="'$' + r.monto_nuevo.toFixed(2)"></td>
+                                                <td class="--text-right sv-mono"
+                                                    :class="r.delta > 0 ? '--up' : (r.delta < 0 ? '--down' : '--flat')"
+                                                    x-text="r.delta === 0 ? '—' : (r.delta > 0 ? '+$' : '-$') + Math.abs(r.delta).toFixed(2)"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td colspan="3">Suma de recibos</td>
+                                            <td class="--text-right sv-mono --bold" x-text="'$' + sync.recibos.reduce((a, r) => a + r.monto_nuevo, 0).toFixed(2)"></td>
+                                            <td class="--text-right">=</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                                <p class="sv-sync__note">Los recibos pagados conservan su importe. El último recibo pendiente absorbe el redondeo para que la suma cuadre exacto con la prima total.</p>
+                            </div>
+                        </div>
+                    </template>
+                    @endif
 
                     <div class="sv-modal__footer">
                         <button type="button" @click="editAdminModalOpen = false" class="sv-btn sv-btn--outline">Cancelar</button>
@@ -1823,6 +1958,158 @@
 .sv-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+/* ── SINCRONIZACIÓN DE RECIBOS (modal financiero) ────────── */
+.sv-alert--warning {
+    background: #fffbeb;
+    border: 1px solid #f59e0b;
+    color: #92400e;
+}
+
+.sv-sync__loading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--sv-gray-500);
+}
+.sv-sync__spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #e2e8f0;
+    border-top-color: var(--sv-gold);
+    border-radius: 50%;
+    animation: svSpin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+@keyframes svSpin { to { transform: rotate(360deg); } }
+
+.sv-sync {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px;
+    border-radius: 14px;
+    background: #fffbeb;
+    border: 1.5px solid #fcd34d;
+}
+.sv-sync__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    color: #92400e;
+}
+.sv-sync__head svg { flex-shrink: 0; margin-top: 2px; }
+.sv-sync__head strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 800;
+    margin-bottom: 4px;
+}
+.sv-sync__head p {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.6;
+}
+.sv-sync__head b { font-weight: 800; }
+
+.sv-sync__option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #fff;
+    border: 1.5px solid #fde68a;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.sv-sync__option.--selected {
+    border-color: var(--sv-gold);
+    box-shadow: 0 0 0 3px rgba(213,164,64,0.15);
+}
+.sv-sync__option input { margin-top: 3px; flex-shrink: 0; accent-color: var(--sv-gold); }
+.sv-sync__option strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--sv-navy);
+}
+.sv-sync__option small {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--sv-gray-500);
+    line-height: 1.5;
+    margin-top: 2px;
+}
+.sv-sync__blocked {
+    margin: -4px 0 0;
+    font-size: 11px;
+    font-weight: 700;
+    color: #b45309;
+    padding-left: 4px;
+}
+
+.sv-sync__preview {
+    background: #fff;
+    border: 1px solid #fde68a;
+    border-radius: 10px;
+    padding: 14px;
+}
+.sv-sync__preview-title {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--sv-gray-500);
+    margin-bottom: 10px;
+}
+.sv-sync__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+.sv-sync__table th {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--sv-gray-400);
+    padding: 0 8px 8px;
+    text-align: left;
+}
+.sv-sync__table td {
+    padding: 8px;
+    border-top: 1px solid #f1f5f9;
+    font-weight: 600;
+    color: var(--sv-gray-600);
+}
+.sv-sync__table tfoot td {
+    border-top: 1.5px solid #e2e8f0;
+    font-weight: 800;
+    color: var(--sv-navy);
+}
+.sv-sync__table .--text-right { text-align: right; }
+.sv-sync__table tr.--locked td { opacity: 0.55; }
+.sv-sync__table .--up { color: #047857; }
+.sv-sync__table .--down { color: #b91c1c; }
+.sv-sync__table .--flat { color: var(--sv-gray-400); }
+.sv-sync__status {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.sv-sync__note {
+    margin: 10px 0 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--sv-gray-400);
+    line-height: 1.5;
 }
 </style>
 
