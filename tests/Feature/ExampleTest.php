@@ -2,18 +2,28 @@
 
 namespace Tests\Feature;
 
-// use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
 {
     /**
-     * A basic test example.
+     * La raíz no renderiza nada propio: redirige al dashboard.
      */
-    public function test_the_application_returns_a_successful_response(): void
+    public function test_the_root_redirects_to_the_dashboard(): void
     {
         $response = $this->get('/');
 
-        $response->assertStatus(200);
+        $response->assertRedirect(route('dashboard'));
+    }
+
+    /**
+     * El dashboard vive detrás del middleware 'auth': un visitante
+     * sin sesión termina en el login.
+     */
+    public function test_the_dashboard_requires_authentication(): void
+    {
+        $response = $this->get('/dashboard');
+
+        $response->assertRedirect(route('login'));
     }
 }
